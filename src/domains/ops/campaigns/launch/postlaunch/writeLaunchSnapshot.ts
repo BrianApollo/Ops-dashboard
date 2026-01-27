@@ -263,6 +263,12 @@ export async function writeLaunchSnapshot({
       },
     };
 
+    // Get image IDs from succeeded media to store in "Images Used In This Campaign"
+    const succeededImageIds = result.media
+      .filter(m => m.type === 'image' && m.stage === 'done' && m.adId)
+      .map(m => imagesWithUrls.find(i => i.name === m.name)?.id)
+      .filter((id): id is string => !!id);
+
     // Save to Airtable
     await updateLaunchData({
       campaignId,
@@ -270,6 +276,7 @@ export async function writeLaunchSnapshot({
       fbAdAccountId: draft.adAccountId,
       launchProfileId: profile.id,
       snapshot,
+      imageIds: succeededImageIds,
     });
     console.log('[writeLaunchSnapshot] Saved launch snapshot to Airtable');
 
