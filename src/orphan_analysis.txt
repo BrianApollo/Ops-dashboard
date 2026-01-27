@@ -1,0 +1,150 @@
+EXPORTED BY BARREL FILES:
+
+CORE/AUTH:
+- AuthContext.tsx (exported as AuthProvider, useAuth)
+- AuthGuard.tsx (exported as RequireAuth, RedirectIfAuthenticated, RootRedirect)
+
+CORE/BULK:
+- useBulkActions.ts (exported)
+- BulkActionBar.tsx (exported as BulkActionBar, BulkActionContainer)
+
+CORE/DIALOG:
+- ConfirmDialog.tsx (exported)
+- AppDialog.tsx (exported)
+
+CORE/FORM:
+- FormField.tsx (exported)
+- useDraftState.ts (exported)
+- DraftIndicator.tsx (exported)
+- useFormState.ts (NOT exported)
+
+CORE/LIST:
+- useListController.ts (exported)
+- ListTableView.tsx (exported)
+- ListToolbar.tsx (exported)
+- ListPagination.tsx (exported)
+- FilterPills.tsx (exported)
+
+CORE/MODALS:
+- ModalProvider.tsx (exported as ModalProvider, ModalContext)
+- useModal.ts (exported)
+- types.ts (exported as types)
+
+CORE/PANEL:
+- SlideInPanel.tsx (exported)
+- SlideInPanelHeader.tsx (exported)
+- SlideInPanelBody.tsx (exported)
+- DetailPanel.tsx (exported as DetailPanel, DetailPanelBody)
+- DetailHeader.tsx (exported)
+- DetailPills.tsx (exported as DetailPills, DetailPill)
+- DetailSection.tsx (exported)
+- DetailContent.tsx (exported)
+- DetailNotes.tsx (exported)
+- DetailActions.tsx (exported)
+- DetailMedia.tsx (exported)
+- SlideInPanelHeader.tsx (exported)
+- DetailPanelHeader.tsx (NOT in barrel - CHECK)
+
+CORE/PERMISSIONS:
+- PermissionsProvider.tsx (exported)
+- usePermissions.ts (exported)
+- Can.tsx (exported as Can, Cannot)
+- opsRoles.ts (NOT exported)
+
+CORE/READONLY:
+- ReadOnlyContext.tsx (exported as ReadOnlyProvider, useReadOnly, useIsReadOnly)
+- ReadOnlyBanner.tsx (exported)
+
+CORE/STATE:
+- LoadingState.tsx (exported)
+- EmptyState.tsx (exported)
+- ErrorState.tsx (exported)
+
+CORE/STATUS:
+- StatusCard.tsx (exported as StatusCard, StatusCardGrid)
+- ReadinessIndicator.tsx (exported)
+
+CORE/STORAGE/CLOUDFLARE:
+- upload.ts (exported as uploadFile, deleteFile, buildPublicUrl, etc)
+- config.ts (exported as isCloudflareConfigured, validateConfig)
+
+CORE/TOAST:
+- ToastContext.tsx (exported as ToastProvider, useToast)
+
+DOMAINS/AUTH:
+- LoginPage.tsx (exported)
+
+DOMAINS/OPS/ADMIN:
+- AdminPage.tsx (exported)
+
+DOMAINS/OPS/AUDIT:
+- AuditLogPage.tsx (exported)
+
+DOMAINS/OPS/CAMPAIGNS/LAUNCH:
+- CampaignLaunchPage.tsx (exported)
+- FinalCheckColumn.tsx (NOT exported in index)
+- LaunchProgressView.tsx (NOT exported in index)
+- LaunchCompletionView.tsx (NOT exported in index)
+- writeLaunchSnapshot.ts (NOT exported in index)
+- CampaignSetupColumn.tsx (exported)
+- CreativesColumn.tsx (NOT exported in index)
+- RedtrackCampaignSelector.tsx (exported)
+- useLaunchAutoSave.ts (NOT exported in index)
+- useLaunchDraftState.ts (NOT exported in index)
+- useLaunchFacebookInfra.ts (NOT exported in index)
+- useLaunchMediaState.ts (NOT exported in index)
+- useLaunchRedtrack.ts (NOT exported in index)
+- useLaunchSelectionState.ts (NOT exported in index)
+- useLaunchValidation.ts (NOT exported in index)
+- usePrelaunchUploader.ts (exported)
+- useCampaignLaunchController.ts (exported)
+- useLaunchExecution.ts (NOT exported in index)
+- useRunLaunchPipeline.ts (NOT exported in index)
+
+DOMAINS/OPS/CAMPAIGNS/POST-LAUNCH:
+- CampaignViewPage.tsx (exported)
+
+DOMAINS/OPS/CAMPAIGNS/PRE-LAUNCH:
+- CampaignsTab.tsx (exported)
+- AddCampaignDialog.tsx (exported)
+
+DOMAINS/OPS/IMAGES:
+- ImagesTab.tsx (exported)
+- CreateImagesDialog.tsx (exported)
+
+DOMAINS/OPS/INFRASTRUCTURE:
+- InfrastructurePage.tsx (exported)
+
+DOMAINS/OPS/LAYOUT:
+- NavItem.tsx (exported)
+- ThemeToggle.tsx (exported)
+- UserMenu.tsx (exported)
+- OpsLayout.tsx (exported)
+
+DOMAINS/OPS/PRODUCTS:
+- ProductsPage.tsx (exported)
+- ProductSelector.tsx (exported)
+- ProductCreationModal.tsx (exported)
+- ProductionModal.tsx (NOT listed)
+
+DOMAINS/OPS/PRODUCTS/HOOKS:
+- useVideoDetailActions.ts (exported)
+- useDetailPanel.ts (exported)
+- usePresetController.ts (exported)
+
+DOMAINS/OPS/PRODUCTS/COMPOSITION:
+- types.ts (exported via *)
+- styles.ts (exported via *)
+
+DOMAINS/OPS/SCRIPTS:
+- ScriptsTab.tsx (exported)
+- AddScriptDialog.tsx (exported)
+
+DOMAINS/OPS/SETUP:
+- SetupTab.tsx (exported)
+
+DOMAINS/OPS/VIDEOS:
+- VideosTab.tsx (exported)
+
+FEATURES - most are exported via barrel files, need to check each one
+
