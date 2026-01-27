@@ -556,6 +556,7 @@ export interface UpdateLaunchDataParams {
   fbAdIds?: string[];
   launchProfileId: string;
   snapshot?: LaunchSnapshot;
+  imageIds?: string[];
 }
 
 /**
@@ -569,6 +570,7 @@ export async function updateLaunchData(params: UpdateLaunchDataParams): Promise<
     fbAdAccountId,
     launchProfileId,
     snapshot,
+    imageIds,
   } = params;
 
   const fields: Record<string, unknown> = {
@@ -581,6 +583,10 @@ export async function updateLaunchData(params: UpdateLaunchDataParams): Promise<
 
   if (snapshot) {
     fields[FIELD_LAUNCHED_DATA] = JSON.stringify(snapshot);
+  }
+
+  if (imageIds && imageIds.length > 0) {
+    fields[FIELD_IMAGES_USED] = imageIds;
   }
 
   await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`, {
