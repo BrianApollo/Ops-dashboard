@@ -11,7 +11,7 @@ import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
-import { useListController, FilterPills } from '../../../core/list';
+import { useListController, FilterPills, ListPagination } from '../../../core/list';
 import { EmptyState } from '../../../core/state';
 import { matchesAllTokens } from '../../../utils';
 import { useDetailPanel } from '../products/hooks';
@@ -104,6 +104,7 @@ export function VideosTab({
   const list = useListController<VideoAsset, VideoFilters>({
     records: videos,
     initialFilters: { status: null },
+    initialPageSize: 20,
     filterFn: (records, filters) =>
       filters.status ? records.filter((v) => v.status === filters.status) : records,
     searchFn: (records, searchTerm) => {
@@ -170,12 +171,19 @@ export function VideosTab({
 
       {/* Video Table */}
       <VideoTable
-        videos={list.filteredRecords}
+        videos={list.visibleRecords}
         columns={columns}
         onVideoClick={(v) => videoDetail.openDetail(v.id)}
         canUpload={canUploadToVideo}
         onUpload={onUpload ? handleTableUpload : undefined}
         uploadingIds={uploadingVideoIds}
+      />
+
+      <ListPagination
+        pageIndex={list.pageIndex}
+        totalPages={list.totalPages}
+        totalRecords={list.filteredCount}
+        onPageChange={list.setPageIndex}
       />
 
       {/* Video Detail Panel */}

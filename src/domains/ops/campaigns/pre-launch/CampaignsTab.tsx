@@ -18,7 +18,7 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
-import { useListController, FilterPills } from '../../../../core/list';
+import { useListController, FilterPills, ListPagination } from '../../../../core/list';
 import { EmptyState } from '../../../../core/state';
 import { StatusPill } from '../../../../ui';
 import { tableHeaderCellSx, tableDataCellSx } from '../../products/composition/styles';
@@ -42,6 +42,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const list = useListController<CampaignItem, CampaignFilters>({
     records: campaigns,
     initialFilters: { status: null },
+    initialPageSize: 20,
     filterFn: (records, filters) => {
       if (!filters.status) return records;
       return records.filter((c) => c.status === filters.status);
@@ -108,70 +109,79 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
       {list.filteredRecords.length === 0 ? (
         <EmptyState variant="filter" />
       ) : (
-        <TableContainer
-          sx={{
-            bgcolor: 'background.paper',
-            borderRadius: 1,
-            border: '1px solid',
-            borderColor: 'divider',
-            overflow: 'hidden',
-          }}
-        >
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={tableHeaderCellSx}>Campaign</TableCell>
-                <TableCell sx={tableHeaderCellSx}>Status</TableCell>
-                <TableCell sx={{ ...tableHeaderCellSx, width: 100 }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {list.filteredRecords.map((campaign) => (
-                <TableRow
-                  key={campaign.id}
-                  hover
-                  sx={{
-                    '&:last-child td': { borderBottom: 0 },
-                  }}
-                >
-                  <TableCell sx={tableDataCellSx}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {campaign.name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={tableDataCellSx}>
-                    <StatusPill status={campaign.status} />
-                  </TableCell>
-                  <TableCell sx={tableDataCellSx}>
-                    {campaign.status === 'Preparing' ? (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleLaunch(campaign.productId, campaign.id);
-                        }}
-                      >
-                        Launch
-                      </Button>
-                    ) : (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleView(campaign.productId, campaign.id);
-                        }}
-                      >
-                        View
-                      </Button>
-                    )}
-                  </TableCell>
+        <>
+          <TableContainer
+            sx={{
+              bgcolor: 'background.paper',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden',
+            }}
+          >
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={tableHeaderCellSx}>Campaign</TableCell>
+                  <TableCell sx={tableHeaderCellSx}>Status</TableCell>
+                  <TableCell sx={{ ...tableHeaderCellSx, width: 100 }}>Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {list.visibleRecords.map((campaign) => (
+                  <TableRow
+                    key={campaign.id}
+                    hover
+                    sx={{
+                      '&:last-child td': { borderBottom: 0 },
+                    }}
+                  >
+                    <TableCell sx={tableDataCellSx}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {campaign.name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={tableDataCellSx}>
+                      <StatusPill status={campaign.status} />
+                    </TableCell>
+                    <TableCell sx={tableDataCellSx}>
+                      {campaign.status === 'Preparing' ? (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLaunch(campaign.productId, campaign.id);
+                          }}
+                        >
+                          Launch
+                        </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleView(campaign.productId, campaign.id);
+                          }}
+                        >
+                          View
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <ListPagination
+            pageIndex={list.pageIndex}
+            totalPages={list.totalPages}
+            totalRecords={list.filteredCount}
+            onPageChange={list.setPageIndex}
+          />
+        </>
       )}
     </Box>
   );

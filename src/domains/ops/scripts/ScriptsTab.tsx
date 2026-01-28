@@ -38,7 +38,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
-import { useListController, FilterPills } from '../../../core/list';
+import { useListController, FilterPills, ListPagination } from '../../../core/list';
 import {
   DetailPanel,
   DetailPanelBody,
@@ -205,6 +205,7 @@ export function ScriptsTab({
   const list = useListController<ScriptItem, ScriptFilters>({
     records: scripts,
     initialFilters: { assignment: null },
+    initialPageSize: 20,
     filterFn: (records, filters) => {
       if (!filters.assignment) return records;
       if (filters.assignment === 'assigned') {
@@ -300,192 +301,201 @@ export function ScriptsTab({
       </Box>
 
       {/* Script Table */}
-      {list.visibleRecords.length === 0 ? (
+      {list.filteredRecords.length === 0 ? (
         <EmptyState variant="filter" />
       ) : (
-        <TableContainer
-          sx={{
-            bgcolor: 'background.paper',
-            borderRadius: 1,
-            border: '1px solid',
-            borderColor: 'divider',
-            overflow: 'hidden',
-          }}
-        >
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ ...tableHeaderCellSx, width: 48, px: 1 }} />
-                <TableCell sx={tableHeaderCellSx}>Script</TableCell>
-                {showProductColumn && (
-                  <TableCell sx={tableHeaderCellSx}>Product</TableCell>
-                )}
-                <TableCell sx={tableHeaderCellSx}>Editors</TableCell>
-                <TableCell sx={{ ...tableHeaderCellSx, width: 120 }}>Status</TableCell>
-                <TableCell sx={{ ...tableHeaderCellSx, width: 120 }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {list.visibleRecords.map((script) => {
-                const isExpanded = expandedScript === script.id;
-                const hasVideos = script.videos.length > 0;
+        <>
+          <TableContainer
+            sx={{
+              bgcolor: 'background.paper',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden',
+            }}
+          >
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ ...tableHeaderCellSx, width: 48, px: 1 }} />
+                  <TableCell sx={tableHeaderCellSx}>Script</TableCell>
+                  {showProductColumn && (
+                    <TableCell sx={tableHeaderCellSx}>Product</TableCell>
+                  )}
+                  <TableCell sx={tableHeaderCellSx}>Editors</TableCell>
+                  <TableCell sx={{ ...tableHeaderCellSx, width: 120 }}>Status</TableCell>
+                  <TableCell sx={{ ...tableHeaderCellSx, width: 120 }}>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {list.visibleRecords.map((script) => {
+                  const isExpanded = expandedScript === script.id;
+                  const hasVideos = script.videos.length > 0;
 
-                return (
-                  <>
-                    {/* Main Script Row */}
-                    <TableRow
-                      key={script.id}
-                      hover
-                      onClick={() => setDetailScriptId(script.id)}
-                      sx={{
-                        cursor: 'pointer',
-                        '&:last-child td': isExpanded ? {} : { borderBottom: 0 },
-                      }}
-                    >
-                      <TableCell sx={{ py: 1.5, px: 1 }}>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => handleToggleExpand(e, script.id, hasVideos)}
-                          disabled={!hasVideos}
-                          sx={{ opacity: hasVideos ? 1 : 0.3 }}
-                        >
-                          {isExpanded ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
-                        </IconButton>
-                      </TableCell>
-                      <TableCell sx={tableDataCellSx}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {script.name}
-                        </Typography>
-                      </TableCell>
-                      {showProductColumn && (
+                  return (
+                    <>
+                      {/* Main Script Row */}
+                      <TableRow
+                        key={script.id}
+                        hover
+                        onClick={() => setDetailScriptId(script.id)}
+                        sx={{
+                          cursor: 'pointer',
+                          '&:last-child td': isExpanded ? {} : { borderBottom: 0 },
+                        }}
+                      >
+                        <TableCell sx={{ py: 1.5, px: 1 }}>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleToggleExpand(e, script.id, hasVideos)}
+                            disabled={!hasVideos}
+                            sx={{ opacity: hasVideos ? 1 : 0.3 }}
+                          >
+                            {isExpanded ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+                          </IconButton>
+                        </TableCell>
                         <TableCell sx={tableDataCellSx}>
-                          <Typography variant="body2" color="text.secondary">
-                            {script.productName}
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {script.name}
                           </Typography>
                         </TableCell>
-                      )}
-                      <TableCell sx={tableDataCellSx}>
-                        {script.videosByEditor.length > 0 ? (
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {script.videosByEditor.map((ev) => (
-                              <Chip
-                                key={ev.editorName}
-                                label={`${ev.editorName} (${ev.count})`}
-                                size="small"
-                                sx={getEditorChipSx(ev.editorName)}
-                              />
-                            ))}
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color="text.disabled">
-                            —
-                          </Typography>
+                        {showProductColumn && (
+                          <TableCell sx={tableDataCellSx}>
+                            <Typography variant="body2" color="text.secondary">
+                              {script.productName}
+                            </Typography>
+                          </TableCell>
                         )}
-                      </TableCell>
-                      <TableCell sx={tableDataCellSx}>
-                        <StatusPill
-                          status={hasVideos ? 'assigned' : 'unassigned'}
-                          label={hasVideos ? 'Assigned' : 'Unassigned'}
-                        />
-                      </TableCell>
-                      <TableCell sx={tableDataCellSx}>
-                        {!hasVideos && (
-                          <Button
-                            size="small"
-                            variant="contained"
-                            disabled={assigningScriptId !== null}
-                            onClick={(e) => handleOpenAssignMenu(e, script.id)}
-                            endIcon={
-                              assigningScriptId === script.id ? (
-                                <CircularProgress size={16} color="inherit" />
-                              ) : (
-                                <KeyboardArrowDownIcon />
-                              )
-                            }
-                          >
-                            {assigningScriptId === script.id ? 'Assigning...' : 'Assign'}
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Expanded Videos Row */}
-                    {hasVideos && (
-                      <TableRow key={`${script.id}-videos`}>
-                        <TableCell
-                          colSpan={columnCount + 1}
-                          sx={{
-                            py: 0,
-                            px: 0,
-                            borderBottom: isExpanded ? '1px solid' : 0,
-                            borderColor: 'divider',
-                          }}
-                        >
-                          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                            <Box
-                              sx={{
-                                py: 1.5,
-                                px: 2,
-                                pl: 7,
-                                bgcolor: (theme) =>
-                                  theme.palette.mode === 'dark'
-                                    ? 'rgba(255,255,255,0.02)'
-                                    : 'grey.50',
-                              }}
-                            >
-                              <Table size="small">
-                                <TableBody>
-                                  {script.videos.map((v) => {
-                                    const fullVideo = videos.find((vid) => vid.id === v.id);
-                                    return (
-                                      <TableRow
-                                        key={v.id}
-                                        hover
-                                        onClick={() => {
-                                          if (fullVideo) {
-                                            setDetailScriptId(null);
-                                            videoDetail.openDetail(fullVideo.id);
-                                          }
-                                        }}
-                                        sx={{
-                                          cursor: 'pointer',
-                                          '&:last-child td': { borderBottom: 0 },
-                                        }}
-                                      >
-                                        <TableCell sx={{ py: 1, pl: 0, border: 0 }}>
-                                          <Typography variant="body2">{v.name}</Typography>
-                                        </TableCell>
-                                        <TableCell sx={{ py: 1, width: 100, border: 0 }}>
-                                          <Typography
-                                            variant="caption"
-                                            color="text.secondary"
-                                            sx={{ textTransform: 'capitalize' }}
-                                          >
-                                            {v.format ?? '—'}
-                                          </Typography>
-                                        </TableCell>
-                                        <TableCell sx={{ py: 1, width: 100, border: 0 }}>
-                                          <StatusPill
-                                            status={v.status}
-                                            label={STATUS_LABELS[v.status as keyof typeof STATUS_LABELS]}
-                                          />
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                                </TableBody>
-                              </Table>
+                        <TableCell sx={tableDataCellSx}>
+                          {script.videosByEditor.length > 0 ? (
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                              {script.videosByEditor.map((ev) => (
+                                <Chip
+                                  key={ev.editorName}
+                                  label={`${ev.editorName} (${ev.count})`}
+                                  size="small"
+                                  sx={getEditorChipSx(ev.editorName)}
+                                />
+                              ))}
                             </Box>
-                          </Collapse>
+                          ) : (
+                            <Typography variant="caption" color="text.disabled">
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell sx={tableDataCellSx}>
+                          <StatusPill
+                            status={hasVideos ? 'assigned' : 'unassigned'}
+                            label={hasVideos ? 'Assigned' : 'Unassigned'}
+                          />
+                        </TableCell>
+                        <TableCell sx={tableDataCellSx}>
+                          {!hasVideos && (
+                            <Button
+                              size="small"
+                              variant="contained"
+                              disabled={assigningScriptId !== null}
+                              onClick={(e) => handleOpenAssignMenu(e, script.id)}
+                              endIcon={
+                                assigningScriptId === script.id ? (
+                                  <CircularProgress size={16} color="inherit" />
+                                ) : (
+                                  <KeyboardArrowDownIcon />
+                                )
+                              }
+                            >
+                              {assigningScriptId === script.id ? 'Assigning...' : 'Assign'}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
-                    )}
-                  </>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+
+                      {/* Expanded Videos Row */}
+                      {hasVideos && (
+                        <TableRow key={`${script.id}-videos`}>
+                          <TableCell
+                            colSpan={columnCount + 1}
+                            sx={{
+                              py: 0,
+                              px: 0,
+                              borderBottom: isExpanded ? '1px solid' : 0,
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                              <Box
+                                sx={{
+                                  py: 1.5,
+                                  px: 2,
+                                  pl: 7,
+                                  bgcolor: (theme) =>
+                                    theme.palette.mode === 'dark'
+                                      ? 'rgba(255,255,255,0.02)'
+                                      : 'grey.50',
+                                }}
+                              >
+                                <Table size="small">
+                                  <TableBody>
+                                    {script.videos.map((v) => {
+                                      const fullVideo = videos.find((vid) => vid.id === v.id);
+                                      return (
+                                        <TableRow
+                                          key={v.id}
+                                          hover
+                                          onClick={() => {
+                                            if (fullVideo) {
+                                              setDetailScriptId(null);
+                                              videoDetail.openDetail(fullVideo.id);
+                                            }
+                                          }}
+                                          sx={{
+                                            cursor: 'pointer',
+                                            '&:last-child td': { borderBottom: 0 },
+                                          }}
+                                        >
+                                          <TableCell sx={{ py: 1, pl: 0, border: 0 }}>
+                                            <Typography variant="body2">{v.name}</Typography>
+                                          </TableCell>
+                                          <TableCell sx={{ py: 1, width: 100, border: 0 }}>
+                                            <Typography
+                                              variant="caption"
+                                              color="text.secondary"
+                                              sx={{ textTransform: 'capitalize' }}
+                                            >
+                                              {v.format ?? '—'}
+                                            </Typography>
+                                          </TableCell>
+                                          <TableCell sx={{ py: 1, width: 100, border: 0 }}>
+                                            <StatusPill
+                                              status={v.status}
+                                              label={STATUS_LABELS[v.status as keyof typeof STATUS_LABELS]}
+                                            />
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <ListPagination
+            pageIndex={list.pageIndex}
+            totalPages={list.totalPages}
+            totalRecords={list.filteredCount}
+            onPageChange={list.setPageIndex}
+          />
+        </>
       )}
 
       {/* Details Panel */}

@@ -3,7 +3,7 @@
  * Campaign identity, ad preset, infrastructure, delivery, URL/tracking.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
@@ -95,6 +95,11 @@ export function CampaignSetupColumn({
   const [editedName, setEditedName] = useState(draft.name);
   const [presetExpanded, setPresetExpanded] = useState(false);
   const [urlExpanded, setUrlExpanded] = useState(false);
+  const [isLinkReplaced, setIsLinkReplaced] = useState(false);
+
+  useEffect(() => {
+    setIsLinkReplaced(false);
+  }, [draft.adPresetId]);
 
   const selectedPreset = adPresets.find((p) => p.id === draft.adPresetId);
 
@@ -357,6 +362,7 @@ export function CampaignSetupColumn({
                 expanded={presetExpanded}
                 onToggle={() => setPresetExpanded(!presetExpanded)}
                 hasContent={!!selectedPreset}
+                dotColor={isLinkReplaced ? 'success.main' : undefined}
               />
               <Select
                 value={draft.adPresetId && adPresets.some((p) => p.id === draft.adPresetId) ? draft.adPresetId : ''}
@@ -400,6 +406,7 @@ export function CampaignSetupColumn({
                               headlines: replaceInArray(draft.headlines),
                               descriptions: replaceInArray(draft.descriptions),
                             });
+                            setIsLinkReplaced(true);
                           }}
                         >
                           <CheckIcon fontSize="small" />
@@ -501,9 +508,10 @@ interface SectionHeaderProps {
   onToggle: () => void;
   hasContent?: boolean;
   subtitle?: string;
+  dotColor?: string;
 }
 
-function SectionHeader({ title, expanded, onToggle, hasContent, subtitle }: SectionHeaderProps) {
+function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotColor }: SectionHeaderProps) {
   return (
     <Box
       onClick={onToggle}
@@ -535,7 +543,7 @@ function SectionHeader({ title, expanded, onToggle, hasContent, subtitle }: Sect
             width: 6,
             height: 6,
             borderRadius: '50%',
-            bgcolor: 'primary.main',
+            bgcolor: dotColor || 'primary.main',
             ml: 0.5,
           }}
         />
