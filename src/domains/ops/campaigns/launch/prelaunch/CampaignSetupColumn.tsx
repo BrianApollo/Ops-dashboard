@@ -517,11 +517,7 @@ interface SectionHeaderProps {
   dotColor?: string;
 }
 
-<<<<<<< HEAD
-function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotColor }: SectionHeaderProps) {
-=======
 function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotColor = 'primary.main' }: SectionHeaderProps) {
->>>>>>> ecec570 (pagination, loading and ad preset updated)
   return (
     <Box
       onClick={onToggle}
@@ -553,11 +549,7 @@ function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotCol
             width: 6,
             height: 6,
             borderRadius: '50%',
-<<<<<<< HEAD
-            bgcolor: dotColor || 'primary.main',
-=======
             bgcolor: dotColor,
->>>>>>> ecec570 (pagination, loading and ad preset updated)
             ml: 0.5,
           }}
         />
