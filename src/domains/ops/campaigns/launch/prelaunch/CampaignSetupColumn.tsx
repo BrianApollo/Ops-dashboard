@@ -362,7 +362,13 @@ export function CampaignSetupColumn({
                 expanded={presetExpanded}
                 onToggle={() => setPresetExpanded(!presetExpanded)}
                 hasContent={!!selectedPreset}
-                dotColor={isLinkReplaced ? 'success.main' : undefined}
+                dotColor={
+                  [...draft.primaryTexts, ...draft.headlines, ...draft.descriptions].some((t) =>
+                    t.includes('{{link}}')
+                  )
+                    ? 'primary.main'
+                    : 'success.main'
+                }
               />
               <Select
                 value={draft.adPresetId && adPresets.some((p) => p.id === draft.adPresetId) ? draft.adPresetId : ''}
@@ -511,7 +517,11 @@ interface SectionHeaderProps {
   dotColor?: string;
 }
 
+<<<<<<< HEAD
 function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotColor }: SectionHeaderProps) {
+=======
+function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotColor = 'primary.main' }: SectionHeaderProps) {
+>>>>>>> ecec570 (pagination, loading and ad preset updated)
   return (
     <Box
       onClick={onToggle}
@@ -543,7 +553,11 @@ function SectionHeader({ title, expanded, onToggle, hasContent, subtitle, dotCol
             width: 6,
             height: 6,
             borderRadius: '50%',
+<<<<<<< HEAD
             bgcolor: dotColor || 'primary.main',
+=======
+            bgcolor: dotColor,
+>>>>>>> ecec570 (pagination, loading and ad preset updated)
             ml: 0.5,
           }}
         />

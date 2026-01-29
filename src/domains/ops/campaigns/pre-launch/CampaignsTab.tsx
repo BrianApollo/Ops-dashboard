@@ -105,7 +105,6 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
         />
       </Box>
 
-      {/* Table or Empty State */}
       {list.filteredRecords.length === 0 ? (
         <EmptyState variant="filter" />
       ) : (
