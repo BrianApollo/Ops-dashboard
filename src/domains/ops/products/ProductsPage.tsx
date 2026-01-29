@@ -371,7 +371,7 @@ export function ProductsPage() {
   }, [selectedProduct, imagesController]);
 
   // Loading state
-  const isLoading = productsController.isLoading || scriptsController.isLoading || imagesController.isLoading;
+  const isLoading = productsController.isLoading || campaignsController.isLoading || scriptsController.isLoadingAuthors;
 
   if (isLoading) {
     return (
@@ -394,7 +394,7 @@ export function ProductsPage() {
         ids,
         selectedProduct.id,
         selectedProduct.name,
-        selectedProduct.driveFolderId
+        selectedProduct.driveFolderId!
       );
 
       alert(`Approved ${ids.length} images successfully!`);
@@ -615,6 +615,7 @@ export function ProductsPage() {
           }}
           isSubmitting={campaignsController.isCreating}
           productName={selectedProduct.name}
+          productId={productIdParam}
         />
       )}
 
