@@ -179,6 +179,7 @@ export function VideosTab({
         uploadingIds={uploadingVideoIds}
       />
 
+      {/* Pagination */}
       <ListPagination
         pageIndex={list.pageIndex}
         totalPages={list.totalPages}

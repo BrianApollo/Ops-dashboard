@@ -126,10 +126,10 @@ export function ScriptsTab({
   isRequestingScrollstoppers = false,
   initialScriptIdToOpen,
   onScriptOpened,
-  selectedProductId,
-  selectedProductName,
-  authorOptions,
-  getNextScriptNumber,
+  // selectedProductId,
+  // selectedProductName,
+  // authorOptions,
+  // getNextScriptNumber,
 }: ScriptsTabProps) {
   // Presentation state
   const [expandedScript, setExpandedScript] = useState<string | null>(null);
@@ -300,7 +300,6 @@ export function ScriptsTab({
         />
       </Box>
 
-      {/* Script Table */}
       {list.filteredRecords.length === 0 ? (
         <EmptyState variant="filter" />
       ) : (
