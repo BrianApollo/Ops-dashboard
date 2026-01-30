@@ -680,6 +680,7 @@ export function ProductsPage() {
         open={createImagesDialogOpen}
         onClose={() => setCreateImagesDialogOpen(false)}
         onSubmit={handleCreateImages}
+        advertorials={advertorialsController.advertorials}
       />
     </Box>
   );

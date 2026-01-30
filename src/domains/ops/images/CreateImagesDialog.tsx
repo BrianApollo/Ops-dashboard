@@ -9,6 +9,7 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
+import { Advertorial } from '../../../features/advertorials';
 
 export interface CreateImagesData {
     numberOfImages: number;
@@ -21,14 +22,15 @@ interface CreateImagesDialogProps {
     open: boolean;
     onClose: () => void;
     onSubmit: (data: CreateImagesData) => void;
+    advertorials: Advertorial[];
 }
 
 const IMAGE_SIZES = ['Auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'];
 const OUTPUT_FORMATS = ['png', 'jpeg', 'jpg'];
 
-export function CreateImagesDialog({ open, onClose, onSubmit }: CreateImagesDialogProps) {
+export function CreateImagesDialog({ open, onClose, onSubmit, advertorials }: CreateImagesDialogProps) {
     const [numberOfImages, setNumberOfImages] = useState('1');
-    const [advertorial, setAdvertorial] = useState('');
+    const [selectedAdvertorialId, setSelectedAdvertorialId] = useState('');
     const [imageSize, setImageSize] = useState('9:16');
     const [outputFormat, setOutputFormat] = useState('png');
 
@@ -36,16 +38,17 @@ export function CreateImagesDialog({ open, onClose, onSubmit }: CreateImagesDial
     useEffect(() => {
         if (open) {
             setNumberOfImages('1');
-            setAdvertorial('');
+            setSelectedAdvertorialId('');
             setImageSize('9:16');
             setOutputFormat('png');
         }
     }, [open]);
 
     const handleSubmit = () => {
+        const selectedAdv = advertorials.find(a => a.id === selectedAdvertorialId);
         onSubmit({
             numberOfImages: parseInt(numberOfImages, 10),
-            advertorial,
+            advertorial: selectedAdv?.text || '',
             imageSize,
             outputFormat,
         });
@@ -72,16 +75,20 @@ export function CreateImagesDialog({ open, onClose, onSubmit }: CreateImagesDial
                     }}
                     sx={{ mt: 1 }}
                 />
-                <TextField
-                    label="Advertorial"
-                    value={advertorial}
-                    onChange={(e) => setAdvertorial(e.target.value)}
-                    fullWidth
-                    size="small"
-                    multiline
-                    rows={2}
-                    sx={{ mt: 2 }}
-                />
+                <FormControl fullWidth size="small" sx={{ mt: 2 }}>
+                    <InputLabel>Advertorial</InputLabel>
+                    <Select
+                        value={selectedAdvertorialId}
+                        label="Advertorial"
+                        onChange={(e) => setSelectedAdvertorialId(e.target.value)}
+                    >
+                        {advertorials.map((adv) => (
+                            <MenuItem key={adv.id} value={adv.id}>
+                                {adv.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
                 <FormControl fullWidth size="small" sx={{ mt: 2 }}>
                     <InputLabel>Image Size</InputLabel>
                     <Select
@@ -118,7 +125,7 @@ export function CreateImagesDialog({ open, onClose, onSubmit }: CreateImagesDial
                 <Button
                     variant="contained"
                     onClick={handleSubmit}
-                    disabled={!numberOfImages || parseInt(numberOfImages) < 1}
+                    disabled={!numberOfImages || parseInt(numberOfImages) < 1 || !selectedAdvertorialId}
                 >
                     Create
                 </Button>
