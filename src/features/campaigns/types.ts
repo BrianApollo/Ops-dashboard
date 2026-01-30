@@ -11,7 +11,7 @@
  * Campaign status values.
  * Maps directly to Airtable Status field values.
  */
-export type CampaignStatus = 'Preparing' | 'Launched';
+export type CampaignStatus = 'Preparing' | 'Launched' | 'Cancelled';
 
 /**
  * Platform values for campaigns.

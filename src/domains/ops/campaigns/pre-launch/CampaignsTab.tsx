@@ -25,7 +25,7 @@ import { tableHeaderCellSx, tableDataCellSx } from '../../products/composition/s
 import { matchesAllTokens } from '../../../../utils';
 import type { CampaignItem } from '../../products/composition/types';
 
-type StatusFilter = 'Preparing' | 'Launched';
+type StatusFilter = 'Preparing' | 'Launched' | 'Cancelled';
 
 interface CampaignFilters {
   status: StatusFilter | null;
@@ -56,6 +56,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   // Counts from all records (unfiltered)
   const preparingCount = list.allRecords.filter((c) => c.status === 'Preparing').length;
   const launchedCount = list.allRecords.filter((c) => c.status === 'Launched').length;
+  const cancelledCount = list.allRecords.filter((c) => c.status === 'Cancelled').length;
 
   // Navigate using productId and campaignId
   const handleView = (productId: string, campaignId: string) => {
@@ -74,6 +75,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
           options={[
             { value: 'Preparing', status: 'preparing', label: `${preparingCount} Preparing` },
             { value: 'Launched', status: 'launched', label: `${launchedCount} Launched` },
+            { value: 'Cancelled', status: 'cancelled', label: `${cancelledCount} Cancelled` },
           ]}
           activeFilter={list.filters.status}
           onFilterChange={(filter) => list.setFilters({ status: filter })}
