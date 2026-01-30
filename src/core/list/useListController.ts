@@ -37,7 +37,7 @@ interface BaseConfig<T extends BaseRecord, F = Record<string, unknown>> {
 type UseListControllerConfig<T extends BaseRecord, F = Record<string, unknown>> =
   BaseConfig<T, F> & (QueryModeConfig<T> | DirectModeConfig<T>);
 
-interface UseListControllerResult<T extends BaseRecord, F = Record<string, unknown>> {
+export interface UseListControllerResult<T extends BaseRecord, F = Record<string, unknown>> {
   allRecords: T[];
   filteredRecords: T[];
   visibleRecords: T[];

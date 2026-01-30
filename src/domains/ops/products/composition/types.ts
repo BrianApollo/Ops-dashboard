@@ -6,7 +6,7 @@
 
 import type { CampaignStatus } from '../../../../features/campaigns/types';
 
-export type WorkspaceTab = 'campaigns' | 'scripts' | 'videos' | 'images' | 'setup';
+export type WorkspaceTab = 'campaigns' | 'scripts' | 'videos' | 'images' | 'advertorials' | 'setup';
 export type CampaignViewTab = 'manage' | 'redtrack-data' | 'launch-data';
 
 export interface CampaignItem {

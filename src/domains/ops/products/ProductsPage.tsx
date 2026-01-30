@@ -20,6 +20,7 @@ import { useImagesController } from '../../../features/images';
 import { useAdPresetsController, getPrimaryTexts, getHeadlines, getDescriptions } from '../../../features/ad-presets';
 import { useVideosController } from '../../../features/videos/useVideosController';
 import { updateVideo } from '../../../features/videos/data';
+import { useAdvertorialsController } from '../../../features/advertorials';
 import { StatusCard } from '../../../core/status';
 import { ProductSelector } from './ProductSelector';
 import { ProductCreationModal } from './ProductCreationModal';
@@ -29,6 +30,8 @@ import { ScriptsTab } from '../scripts/ScriptsTab';
 import { VideosTab } from '../videos/VideosTab';
 import { ImagesTab } from '../images/ImagesTab';
 import { CreateImagesDialog } from '../images/CreateImagesDialog';
+import { AdvertorialsTab } from './advertorials/AdvertorialsTab';
+import { AddAdvertorialDialog } from './advertorials/AddAdvertorialDialog';
 import { SetupTab } from '../setup/SetupTab';
 import type { WorkspaceTab, ProductInfo } from './composition/types';
 
@@ -60,6 +63,7 @@ export function ProductsPage() {
   const imagesController = useImagesController({ initialFilters: { productId: productIdParam ?? null, status: [], imageType: null } });
   const adPresetsController = useAdPresetsController({ initialFilters: { productId: productIdParam ?? null, status: [] } });
   const videosController = useVideosController();
+  const advertorialsController = useAdvertorialsController({ initialFilters: { productId: productIdParam ?? null } });
 
   // Product from route param only - transform to ProductInfo UI type
   const selectedProduct = useMemo((): ProductInfo | null => {
@@ -86,6 +90,7 @@ export function ProductsPage() {
     scriptsController.setProductFilter(productId);
     campaignsController.setProductFilter(productId);
     adPresetsController.setProductFilter(productId);
+    advertorialsController.setProductFilter(productId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIdParam]);
 
@@ -287,6 +292,7 @@ export function ProductsPage() {
   // Tab action dialogs
   const [addCampaignDialogOpen, setAddCampaignDialogOpen] = useState(false);
   const [addScriptDialogOpen, setAddScriptDialogOpen] = useState(false);
+  const [addAdvertorialDialogOpen, setAddAdvertorialDialogOpen] = useState(false);
   const [createImagesDialogOpen, setCreateImagesDialogOpen] = useState(false);
   const [isApprovingImages, setIsApprovingImages] = useState(false);
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
@@ -457,6 +463,7 @@ export function ProductsPage() {
             { value: 'scripts', label: 'Scripts' },
             { value: 'videos', label: 'Videos' },
             { value: 'images', label: 'Images' },
+            { value: 'advertorials', label: 'Advertorials' },
             { value: 'setup', label: 'Setup' },
           ]}
           size="medium"
@@ -522,6 +529,18 @@ export function ProductsPage() {
               </Button>
             </>
           )}
+          {activeTab === 'advertorials' && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setAddAdvertorialDialogOpen(true)}
+              disabled={!productIdParam}
+              sx={{ textTransform: 'none' }}
+            >
+              Add Advertorial
+            </Button>
+          )}
         </Box>
       </Paper>
 
@@ -579,6 +598,13 @@ export function ProductsPage() {
             onSelectionChange={setSelectedImageIds}
           />
         )}
+        {activeTab === 'advertorials' && (
+          <AdvertorialsTab
+            controller={advertorialsController.list}
+            onApprove={advertorialsController.approveAdvertorial}
+            onUpdate={advertorialsController.updateAdvertorial}
+          />
+        )}
         {activeTab === 'setup' && (
           <SetupTab
             presets={presetsData}
@@ -631,6 +657,21 @@ export function ProductsPage() {
           productName={selectedProduct.name}
           authorOptions={scriptsController.authorOptions}
           nextScriptNumber={scriptsController.getNextScriptNumber(productIdParam)}
+        />
+      )}
+
+      {/* Add Advertorial Dialog */}
+      {productIdParam && selectedProduct && (
+        <AddAdvertorialDialog
+          open={addAdvertorialDialogOpen}
+          onClose={() => setAddAdvertorialDialogOpen(false)}
+          onSubmit={async (name, productId, text, link) => {
+            await advertorialsController.createAdvertorial(name, productId, text, link);
+            setAddAdvertorialDialogOpen(false);
+          }}
+          isSubmitting={advertorialsController.isLoading}
+          productName={selectedProduct.name}
+          productId={productIdParam}
         />
       )}
 
