@@ -168,6 +168,7 @@ function normalizeStatus(rawStatus: string | undefined): CampaignStatus {
   const normalized = rawStatus.toLowerCase();
   if (normalized === 'preparing') return 'Preparing';
   if (normalized === 'launched') return 'Launched';
+  if (normalized === 'cancelled') return 'Cancelled';
 
   // Default to Preparing for unknown values
   return 'Preparing';

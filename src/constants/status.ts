@@ -25,7 +25,7 @@ export type StatusKey =
   | 'preparing' | 'launched' | 'benched'
   | 'pending' | 'archived' | 'disabled'
   | 'pending_review' | 'approved' | 'revision_needed'
-  | 'new';
+  | 'new' | 'cancelled';
 
 export interface StatusColorSet {
   bg: string;
@@ -146,6 +146,12 @@ export const STATUS_COLORS: Record<StatusKey, StatusColorSet> = {
     bgSubtle: '#f9fafb', // gray-50
     border: '#e5e7eb',  // gray-200
   },
+  cancelled: {
+    bg: '#fee2e2',      // red-100
+    text: '#991b1b',    // red-800
+    bgSubtle: '#fef2f2', // red-50
+    border: '#fecaca',  // red-200
+  },
 
   // Image statuses
   pending: {
@@ -226,4 +232,5 @@ export const STATUS_LABELS: Record<StatusKey, string> = {
   approved: 'Approved',
   revision_needed: 'Revision Needed',
   new: 'New',
+  cancelled: 'Cancelled',
 };
