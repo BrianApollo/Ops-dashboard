@@ -144,8 +144,11 @@ export interface UseVideosControllerResult {
   canUploadToVideo: (video: VideoAsset) => boolean;
 
   // Script assignment
-  assignScriptToEditors: (script: { id: string; name: string; product: { id: string } }, editorId?: string) => Promise<void>;
-  assigningScriptId: string | null;
+  assigningScriptIds: Set<string>;
+  bulkAssignScriptsToEditor: (
+    scripts: Array<{ id: string; name: string; product: { id: string } }>,
+    editorId?: string
+  ) => Promise<{ created: number; skipped: number }>;
 
   // Scrollstopper requests
   requestScrollstoppers: (params: {
@@ -153,7 +156,6 @@ export interface UseVideosControllerResult {
     editorIds: string[];
     count: number;
   }) => Promise<void>;
-  requestingScrollstoppersForScript: string | null;
   getMaxScrollstopperNumber: (scriptId: string, editorId: string) => number;
 }
 
@@ -163,8 +165,7 @@ export function useVideosController(): UseVideosControllerResult {
   // Use real auth user
   const { user: authUser } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
-  const [assigningScriptId, setAssigningScriptId] = useState<string | null>(null);
-  const [requestingScrollstoppersForScript, setRequestingScrollstoppersForScript] = useState<string | null>(null);
+  const [assigningScriptIds, setAssigningScriptIds] = useState<Set<string>>(new Set());
 
   // Get current user context (role-based permissions)
   // Map Auth User -> Permissions UserContext
@@ -483,29 +484,48 @@ export function useVideosController(): UseVideosControllerResult {
   // ---------------------------------------------------------------------------
 
   /**
-   * Assign a script to editors.
-   * - If editorId provided: assign to ONE editor (6 videos)
-   * - If editorId omitted: assign to ALL editors (12 videos)
-   * Creates 6 videos per editor (3 formats × 2 text versions).
-   * Videos controller owns video creation — correct architectural layer.
-   * Uses batch create for efficiency.
+   * Bulk assign multiple scripts to an editor (or all editors).
+   * - Fetches editors + videos ONCE
+   * - Builds all CreateVideoInput[] in one pass
+   * - Batch creates via createVideoBatch (handles 10-record Airtable chunking)
+   * - Refetches once at the end
    */
-  const assignScriptToEditors = useCallback(
+  const bulkAssignScriptsToEditor = useCallback(
     async (
-      script: { id: string; name: string; product: { id: string } },
+      scripts: Array<{ id: string; name: string; product: { id: string } }>,
       editorId?: string
-    ): Promise<void> => {
-      setAssigningScriptId(script.id);
+    ): Promise<{ created: number; skipped: number }> => {
+      // Guard: filter out scripts already being assigned (prevent double-fire)
+      const newScripts = scripts.filter(s => !assigningScriptIds.has(s.id));
+      if (newScripts.length === 0) {
+        return { created: 0, skipped: scripts.length };
+      }
+
+      // Add all IDs to the assigning set in one call
+      const newIds = newScripts.map(s => s.id);
+      setAssigningScriptIds(prev => {
+        const next = new Set(prev);
+        newIds.forEach(id => next.add(id));
+        return next;
+      });
+
       try {
-        // Fetch all editors and existing videos
+        // Phase 1: Fetch once
         const [allEditors, existingVideos] = await Promise.all([
           getEditors(),
           listVideos(),
         ]);
 
-        // Filter to single editor if specified, otherwise all
+        // Resolve editor name for toast
+        const editorName = editorId
+          ? allEditors.find(e => e.id === editorId)?.name ?? 'Unknown Editor'
+          : 'all editors';
+
+        toast.info(`Assigning ${newScripts.length} script${newScripts.length !== 1 ? 's' : ''} to ${editorName}...`);
+
+        // Filter to target editors
         const editors = editorId
-          ? allEditors.filter((e) => e.id === editorId)
+          ? allEditors.filter(e => e.id === editorId)
           : allEditors;
 
         if (editors.length === 0) {
@@ -513,54 +533,70 @@ export function useVideosController(): UseVideosControllerResult {
         }
 
         const FORMATS: VideoFormat[] = ['vertical', 'square', 'youtube'];
-        const TEXT_VERSIONS = [true, false]; // hasText
+        const TEXT_VERSIONS = [true, false];
 
-        // Build list of videos to create (idempotency check)
-        const videosToCreate: CreateVideoInput[] = [];
+        // Phase 2: Build all inputs
+        const allInputs: CreateVideoInput[] = [];
 
-        for (const editor of editors) {
-          for (const format of FORMATS) {
-            for (const hasText of TEXT_VERSIONS) {
-              const exists = existingVideos.some(
-                (v) =>
-                  v.script.id === script.id &&
-                  v.editor.id === editor.id &&
-                  v.format === format &&
-                  v.hasText === hasText
-              );
+        for (const script of newScripts) {
+          for (const editor of editors) {
+            for (const format of FORMATS) {
+              for (const hasText of TEXT_VERSIONS) {
+                const exists = existingVideos.some(
+                  v =>
+                    v.script.id === script.id &&
+                    v.editor.id === editor.id &&
+                    v.format === format &&
+                    v.hasText === hasText
+                );
 
-              if (!exists) {
-                const formatLabel =
-                  format === 'youtube'
-                    ? 'YouTube'
-                    : format.charAt(0).toUpperCase() + format.slice(1);
-                const name = generateVideoName(script.name, formatLabel, editor.name, hasText);
+                if (!exists) {
+                  const formatLabel =
+                    format === 'youtube'
+                      ? 'YouTube'
+                      : format.charAt(0).toUpperCase() + format.slice(1);
+                  const name = generateVideoName(script.name, formatLabel, editor.name, hasText);
 
-                videosToCreate.push({
-                  name,
-                  format,
-                  hasText,
-                  editorId: editor.id,
-                  productId: script.product.id,
-                  scriptId: script.id,
-                });
+                  allInputs.push({
+                    name,
+                    format,
+                    hasText,
+                    editorId: editor.id,
+                    productId: script.product.id,
+                    scriptId: script.id,
+                  });
+                }
               }
             }
           }
         }
 
-        // Batch create all videos (max 2 API calls for 12 videos)
-        if (videosToCreate.length > 0) {
-          await createVideoBatch(videosToCreate);
+        // Phase 3: Batch create
+        if (allInputs.length > 0) {
+          await createVideoBatch(allInputs);
         }
 
-        // Refetch OWN data (videos controller refetches videos)
+        const skipped = (newScripts.length * editors.length * FORMATS.length * TEXT_VERSIONS.length) - allInputs.length;
+
+        // Phase 4: Refetch once
         await list.refetch();
+
+        toast.success(`Done — ${allInputs.length} video${allInputs.length !== 1 ? 's' : ''} created for ${editorName}`);
+
+        return { created: allInputs.length, skipped };
+      } catch (error) {
+        toast.error(`Failed to assign scripts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw error;
       } finally {
-        setAssigningScriptId(null);
+        // Remove all IDs from the set
+        setAssigningScriptIds(prev => {
+          const next = new Set(prev);
+          newIds.forEach(id => next.delete(id));
+          return next;
+        });
       }
     },
-    [list]
+    [list, toast, assigningScriptIds]
   );
 
   // ---------------------------------------------------------------------------
@@ -611,13 +647,11 @@ export function useVideosController(): UseVideosControllerResult {
         throw new Error('Count must be at least 1');
       }
 
-      setRequestingScrollstoppersForScript(scriptId);
+      setAssigningScriptIds(prev => new Set(prev).add(scriptId));
       try {
-        // Get all editors and existing videos
-        const [allEditors, existingVideos] = await Promise.all([
-          getEditors(),
-          listVideos(),
-        ]);
+        // Get editors (cached) and use already-loaded videos
+        const allEditors = await getEditors();
+        const existingVideos = list.allRecords;
 
         // Filter to requested editors
         const editors = editorIds.length > 0
@@ -701,7 +735,7 @@ export function useVideosController(): UseVideosControllerResult {
         // Refresh data
         await list.refetch();
       } finally {
-        setRequestingScrollstoppersForScript(null);
+        setAssigningScriptIds(prev => { const next = new Set(prev); next.delete(scriptId); return next; });
       }
     },
     [list, toast]
@@ -725,10 +759,9 @@ export function useVideosController(): UseVideosControllerResult {
     isUploading,
     isVideoUploading,
     canUploadToVideo: canUploadToVideoFn,
-    assignScriptToEditors,
-    assigningScriptId,
+    assigningScriptIds,
+    bulkAssignScriptsToEditor,
     requestScrollstoppers,
-    requestingScrollstoppersForScript,
     getMaxScrollstopperNumber,
   };
 }

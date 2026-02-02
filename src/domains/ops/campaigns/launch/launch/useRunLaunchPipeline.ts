@@ -136,16 +136,18 @@ export function useRunLaunchPipeline(): UseRunLaunchPipelineReturn {
     const videos = media.filter((m) => m.type === 'video');
     const images = media.filter((m) => m.type === 'image');
 
+    const uploadedStates = ['processing', 'ready', 'creating_ad', 'done'];
+
     return {
       videos: {
         total: videos.length,
-        uploaded: videos.filter((m) => m.stage === 'poll' || m.stage === 'ad' || m.stage === 'done').length,
-        ready: videos.filter((m) => m.stage === 'done').length,
+        uploaded: videos.filter((m) => uploadedStates.includes(m.state)).length,
+        ready: videos.filter((m) => m.state === 'done').length,
       },
       images: {
         total: images.length,
-        uploaded: images.filter((m) => m.stage === 'ad' || m.stage === 'done').length,
-        ready: images.filter((m) => m.stage === 'done').length,
+        uploaded: images.filter((m) => uploadedStates.includes(m.state)).length,
+        ready: images.filter((m) => m.state === 'done').length,
       },
     };
   }, [fbLaunch.state]);

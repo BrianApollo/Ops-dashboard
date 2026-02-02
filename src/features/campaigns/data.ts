@@ -286,6 +286,10 @@ function mapAirtableToCampaign(
     ? fields[FIELD_LAUNCH_PROFILE_ID]
     : undefined;
 
+  const launchedData = typeof fields[FIELD_LAUNCHED_DATA] === 'string'
+    ? fields[FIELD_LAUNCHED_DATA]
+    : undefined;
+
   // Draft fields
   const launchDate = typeof fields[FIELD_LAUNCH_DATE] === 'string'
     ? fields[FIELD_LAUNCH_DATE]
@@ -363,6 +367,7 @@ function mapAirtableToCampaign(
     fbCampaignId,
     fbAdAccountId,
     launchProfileId,
+    launchedData,
     // Draft fields
     launchDate,
     launchTime,

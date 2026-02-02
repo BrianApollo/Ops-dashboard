@@ -45,7 +45,6 @@ export type {
   FbLaunchController,
   OnProgressCallback,
   MediaType,
-  MediaStage,
-  MediaStatus,
+  MediaItemState,
   LaunchPhase,
 } from './fbLaunchRunner';

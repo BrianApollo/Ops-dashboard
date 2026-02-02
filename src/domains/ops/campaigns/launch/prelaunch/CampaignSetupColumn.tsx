@@ -3,7 +3,7 @@
  * Campaign identity, ad preset, infrastructure, delivery, URL/tracking.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
@@ -95,12 +95,6 @@ export function CampaignSetupColumn({
   const [editedName, setEditedName] = useState(draft.name);
   const [presetExpanded, setPresetExpanded] = useState(false);
   const [urlExpanded, setUrlExpanded] = useState(false);
-  const [isLinkReplaced, setIsLinkReplaced] = useState(false);
-
-  useEffect(() => {
-    setIsLinkReplaced(false);
-  }, [draft.adPresetId]);
-
   const selectedPreset = adPresets.find((p) => p.id === draft.adPresetId);
 
   const handleSaveName = () => {
@@ -353,77 +347,47 @@ export function CampaignSetupColumn({
           </FormField>
         </Box>
 
-        {/* Ad Preset & Link */}
+        {/* Ad Preset */}
         <Box>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'end' }}>
-            <Box>
-              <SectionHeader
-                title="Ad Preset"
-                expanded={presetExpanded}
-                onToggle={() => setPresetExpanded(!presetExpanded)}
-                hasContent={!!selectedPreset}
-                dotColor={
-                  [...draft.primaryTexts, ...draft.headlines, ...draft.descriptions].some((t) =>
-                    t.includes('{{link}}')
-                  )
-                    ? 'primary.main'
-                    : 'success.main'
-                }
-              />
-              <Select
-                value={draft.adPresetId && adPresets.some((p) => p.id === draft.adPresetId) ? draft.adPresetId : ''}
-                onChange={(e) => onDraftChange({ adPresetId: e.target.value || null })}
-                size="small"
-                fullWidth
-                displayEmpty
-                sx={{ '& .MuiSelect-select': textSm }}
-              >
-                <MenuItem value="">Select a preset...</MenuItem>
-                {adPresets.map((preset) => (
-                  <MenuItem key={preset.id} value={preset.id}>
-                    {preset.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </Box>
-
-            <Box>
-              <FormField label="Link Variable {{link}}" noMargin>
-                <TextField
-                  size="small"
-                  fullWidth
-                  placeholder="https://..."
-                  value={draft.linkVariable}
-                  onChange={(e) => onDraftChange({ linkVariable: e.target.value })}
-                  sx={{ '& .MuiInputBase-input': textSm }}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          size="small"
-                          sx={{ color: 'primary.main' }}
-                          onClick={() => {
-                            if (!draft.linkVariable.trim()) return;
-
-                            const replaceInArray = (arr: string[]) => arr.map(text => text.replace('{{link}}', draft.linkVariable));
-
-                            onDraftChange({
-                              primaryTexts: replaceInArray(draft.primaryTexts),
-                              headlines: replaceInArray(draft.headlines),
-                              descriptions: replaceInArray(draft.descriptions),
-                            });
-                            setIsLinkReplaced(true);
-                          }}
-                        >
-                          <CheckIcon fontSize="small" />
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </FormField>
-            </Box>
-          </Box>
+          <SectionHeader
+            title="Ad Preset"
+            expanded={presetExpanded}
+            onToggle={() => setPresetExpanded(!presetExpanded)}
+            hasContent={!!selectedPreset}
+            dotColor={
+              [...draft.primaryTexts, ...draft.headlines, ...draft.descriptions].some((t) =>
+                t.includes('{{link}}')
+              )
+                ? 'primary.main'
+                : 'success.main'
+            }
+          />
+          <Select
+            value={draft.adPresetId && adPresets.some((p) => p.id === draft.adPresetId) ? draft.adPresetId : ''}
+            onChange={(e) => onDraftChange({ adPresetId: e.target.value || null })}
+            size="small"
+            fullWidth
+            displayEmpty
+            sx={{ '& .MuiSelect-select': textSm }}
+          >
+            <MenuItem value="">Select a preset...</MenuItem>
+            {adPresets.map((preset) => (
+              <MenuItem key={preset.id} value={preset.id}>
+                {preset.name}
+              </MenuItem>
+            ))}
+          </Select>
+          {(() => {
+            const textsHaveLink = [...draft.primaryTexts, ...draft.headlines, ...draft.descriptions].some(t => t.includes('{{link}}'));
+            const presetHadLink = selectedPreset && [...selectedPreset.primaryTexts, ...selectedPreset.headlines, ...selectedPreset.descriptions].some(t => t.includes('{{link}}'));
+            if (textsHaveLink) {
+              return <Chip label="{{link}} not replaced" color="warning" size="small" sx={{ mt: 1 }} />;
+            }
+            if (draft.linkVariable && presetHadLink) {
+              return <Chip label="{{link}} replaced" color="success" size="small" sx={{ mt: 1 }} />;
+            }
+            return null;
+          })()}
 
           <Collapse in={presetExpanded && !!selectedPreset}>
             {selectedPreset && (

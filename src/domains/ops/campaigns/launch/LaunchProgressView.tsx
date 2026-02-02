@@ -1,11 +1,13 @@
 /**
- * LaunchProgressView - Compact launch progress display.
+ * LaunchProgressView - Full-width launch progress display.
  *
  * Shows:
- * - Timeline at top (Validate → Upload → Campaign & AdSet → Ads → Done)
- * - Current action section (Upload OR Ads, not both)
- * - Completed items footer (Campaign ID, Ad Set ID)
- * - Full summary on complete
+ * - Header with campaign name, progress bar, elapsed time, API rate
+ * - Steps summary row (Upload, Processing, Campaign, Ads) — always visible
+ * - Tick summary bar showing what happened on the latest tick
+ * - Videos table with per-item progress bar, state, Video ID, Ad ID
+ * - Images table with per-item progress bar, state, Ad ID
+ * - Completion/error/stopped view at the end
  */
 
 import Box from '@mui/material/Box';
@@ -17,8 +19,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import { textLg, textMd, textSm, textXs, helperText } from '../../../../theme/typography';
-import type { FbLaunchState, LaunchPhase, FbLaunchMediaState } from '../../../../features/campaigns/launch';
+import type { FbLaunchState, LaunchPhase, FbLaunchMediaState, MediaItemState } from '../../../../features/campaigns/launch';
 import { LaunchCompletionView } from './postlaunch/LaunchCompletionView';
 
 // =============================================================================
@@ -29,11 +32,19 @@ interface MediaItemForDisplay {
   id: string;
   name: string;
   type: 'video' | 'image';
-  uploadStatus: 'pending' | 'sent' | 'fb-downloading' | 'processing' | 'ready' | 'failed';
-  uploadProgress?: number;
-  adStatus: 'waiting' | 'creating' | 'created' | 'failed';
+  /** Single state from the pipeline */
+  itemState: MediaItemState;
+  /** Progress percentage (0-100) based on state */
+  progressPercent: number;
+  /** Display label for the current state */
+  stateLabel: string;
+  fbVideoId?: string;
   adId?: string;
+  retryCount: number;
   error?: string;
+  // Legacy fields for LaunchCompletionView compatibility
+  uploadStatus: 'pending' | 'sent' | 'fb-downloading' | 'processing' | 'ready' | 'failed';
+  adStatus: 'waiting' | 'creating' | 'created' | 'failed';
 }
 
 interface LaunchProgressViewProps {
@@ -43,16 +54,13 @@ interface LaunchProgressViewProps {
   onCancel?: () => void;
   selectedVideos: Array<{ id: string; name: string }>;
   selectedImages: Array<{ id: string; name: string }>;
-  /** Launch result for complete state */
   launchResult?: {
     campaignId?: string;
     adSetId?: string;
     success: boolean;
     error?: string;
   } | null;
-  /** Ad account ID for Ads Manager link */
   adAccountId?: string | null;
-  /** Callback to navigate back to product */
   onBackToProduct?: () => void;
 }
 
@@ -62,51 +70,86 @@ interface LaunchProgressViewProps {
 
 type StepStatus = 'done' | 'active' | 'pending';
 
-/**
- * Map FbLaunchRunner phases to timeline step statuses
- * Phases: idle | checking | uploading | polling | creating_campaign | creating_ads | stopped | complete | error
- */
-function getStepStatuses(phase: LaunchPhase): {
-  validate: StepStatus;
-  upload: StepStatus;
-  setup: StepStatus;
-  ads: StepStatus;
-  done: StepStatus;
+function getStepStatuses(phase: LaunchPhase, stats: FbLaunchState['stats'] | null): {
+  upload: { status: StepStatus; label: string };
+  processing: { status: StepStatus; label: string };
+  campaign: { status: StepStatus; label: string };
+  ads: { status: StepStatus; label: string };
 } {
-  // Phase progression: checking -> uploading -> polling -> creating_campaign -> creating_ads -> complete
   const phaseOrder: LaunchPhase[] = ['idle', 'checking', 'uploading', 'polling', 'creating_campaign', 'creating_ads', 'complete'];
   const idx = phaseOrder.indexOf(phase);
+  const isFinal = phase === 'error' || phase === 'stopped' || phase === 'complete';
 
-  // Handle special cases
-  if (phase === 'error' || phase === 'stopped') {
-    return {
-      validate: 'done',
-      upload: 'done',
-      setup: 'done',
-      ads: 'pending',
-      done: 'pending',
-    };
-  }
+  const total = stats?.total || 0;
+  const uploaded = (stats?.processing || 0) + (stats?.ready || 0) + (stats?.creatingAd || 0) + (stats?.done || 0);
+  const processed = (stats?.ready || 0) + (stats?.creatingAd || 0) + (stats?.done || 0);
+  const adsDone = stats?.done || 0;
 
   return {
-    validate: idx > 1 ? 'done' : (idx === 0 || idx === 1) ? 'active' : 'pending', // idle/checking
-    upload: idx > 3 ? 'done' : (idx === 2 || idx === 3) ? 'active' : 'pending',   // uploading/polling
-    setup: idx > 4 ? 'done' : idx === 4 ? 'active' : 'pending',                   // creating_campaign
-    ads: idx > 5 ? 'done' : idx === 5 ? 'active' : 'pending',                     // creating_ads
-    done: phase === 'complete' ? 'done' : 'pending',
+    upload: {
+      status: idx > 3 || isFinal ? 'done' : (idx === 2 || idx === 3) ? 'active' : idx > 1 ? 'done' : 'pending',
+      label: total > 0 ? `${uploaded}/${total}` : '',
+    },
+    processing: {
+      status: idx > 3 || isFinal ? 'done' : idx === 3 ? 'active' : idx > 3 ? 'done' : 'pending',
+      label: total > 0 ? `${processed}/${total}` : '',
+    },
+    campaign: {
+      status: idx > 4 || isFinal ? 'done' : idx === 4 ? 'active' : 'pending',
+      label: phase === 'creating_campaign' ? 'Creating...' : (idx > 4 || isFinal) ? 'Created' : '',
+    },
+    ads: {
+      status: phase === 'complete' ? 'done' : idx === 5 ? 'active' : 'pending',
+      label: total > 0 ? `${adsDone}/${total}` : '',
+    },
   };
 }
 
-/**
- * Build display items from FbLaunchState media array
- * Maps the new state shape (stage/status) to display format
- */
+function getItemProgressPercent(state: MediaItemState, type: 'video' | 'image'): number {
+  if (type === 'image') {
+    // Images skip upload/processing: queued(0) → ready(60) → creating_ad(80) → done(100)
+    switch (state) {
+      case 'queued': return 0;
+      case 'ready': return 60;
+      case 'creating_ad': return 80;
+      case 'done': return 100;
+      case 'failed': return 0;
+      default: return 0;
+    }
+  }
+  // Videos go through all stages
+  switch (state) {
+    case 'queued': return 0;
+    case 'uploading': return 20;
+    case 'processing': return 40;
+    case 'ready': return 60;
+    case 'creating_ad': return 80;
+    case 'done': return 100;
+    case 'failed': return 0;
+    default: return 0;
+  }
+}
+
+function getStateLabel(state: MediaItemState, retryCount: number, maxRetries: number): string {
+  // Items that fail temporarily go back to queued/ready and retry next tick.
+  // Don't show retry counts for in-progress states — only for permanently failed items.
+  switch (state) {
+    case 'queued': return 'Queued';
+    case 'uploading': return 'Uploading...';
+    case 'processing': return 'Processing';
+    case 'ready': return 'Ready';
+    case 'creating_ad': return 'Creating Ad...';
+    case 'done': return 'Done';
+    case 'failed': return `Failed (${retryCount}/${maxRetries})`;
+    default: return state;
+  }
+}
+
 function buildMediaItems(
   selectedVideos: Array<{ id: string; name: string }>,
   selectedImages: Array<{ id: string; name: string }>,
   progress: FbLaunchState | null
 ): MediaItemForDisplay[] {
-  // Build a map of media by name for lookup
   const mediaStateMap = new Map<string, FbLaunchMediaState>();
   if (progress?.media) {
     for (const m of progress.media) {
@@ -117,109 +160,114 @@ function buildMediaItems(
   const items: MediaItemForDisplay[] = [];
 
   for (const video of selectedVideos) {
-    const state = mediaStateMap.get(video.name);
+    const ms = mediaStateMap.get(video.name);
+    const itemState: MediaItemState = ms?.state || 'queued';
     items.push({
       id: video.id,
       name: video.name,
       type: 'video',
-      uploadStatus: mapUploadStatusFromState(state),
-      adStatus: mapAdStatusFromState(state),
-      adId: state?.adId || undefined,
-      error: state?.error || undefined,
+      itemState,
+      progressPercent: getItemProgressPercent(itemState, 'video'),
+      stateLabel: getStateLabel(itemState, ms?.retryCount || 0, 3),
+      fbVideoId: ms?.fbVideoId || undefined,
+      adId: ms?.adId || undefined,
+      retryCount: ms?.retryCount || 0,
+      error: ms?.error || undefined,
+      // Legacy for CompletionView
+      uploadStatus: mapUploadStatus(itemState),
+      adStatus: mapAdStatus(itemState, ms?.adId),
     });
   }
 
   for (const image of selectedImages) {
-    const state = mediaStateMap.get(image.name);
+    const ms = mediaStateMap.get(image.name);
+    const itemState: MediaItemState = ms?.state || 'queued';
     items.push({
       id: image.id,
       name: image.name,
       type: 'image',
-      uploadStatus: mapUploadStatusFromState(state),
-      adStatus: mapAdStatusFromState(state),
-      adId: state?.adId || undefined,
-      error: state?.error || undefined,
+      itemState,
+      progressPercent: getItemProgressPercent(itemState, 'image'),
+      stateLabel: getStateLabel(itemState, ms?.retryCount || 0, 3),
+      adId: ms?.adId || undefined,
+      retryCount: ms?.retryCount || 0,
+      error: ms?.error || undefined,
+      // Legacy for CompletionView
+      uploadStatus: mapUploadStatus(itemState),
+      adStatus: mapAdStatus(itemState, ms?.adId),
     });
   }
 
   return items;
 }
 
-/**
- * Map FbLaunchMediaState (stage/status) to upload display status
- * Stages: upload | poll | ad | done | failed
- * Status: queued | in_progress | retry | completed | failed
- */
-function mapUploadStatusFromState(state?: FbLaunchMediaState): MediaItemForDisplay['uploadStatus'] {
-  if (!state) return 'pending';
-
-  // Check stage first
-  if (state.stage === 'failed') return 'failed';
-  if (state.stage === 'done') return 'ready';
-  if (state.stage === 'ad') return 'ready'; // Video ready for ad creation
-  if (state.stage === 'poll') return 'processing'; // Video uploaded, waiting for FB processing
-  if (state.stage === 'upload') {
-    if (state.status === 'in_progress') return 'sent';
-    if (state.status === 'failed') return 'failed';
-    return 'pending';
+function mapUploadStatus(state: MediaItemState): MediaItemForDisplay['uploadStatus'] {
+  switch (state) {
+    case 'queued': return 'pending';
+    case 'uploading': return 'sent';
+    case 'processing': return 'processing';
+    case 'ready':
+    case 'creating_ad':
+    case 'done': return 'ready';
+    case 'failed': return 'failed';
+    default: return 'pending';
   }
-
-  // For images (which skip upload/poll stages)
-  if (state.type === 'image') {
-    if (state.stage === 'ad' || state.stage === 'done') return 'ready';
-    return 'pending';
-  }
-
-  return 'pending';
 }
 
-/**
- * Map FbLaunchMediaState to ad creation display status
- */
-function mapAdStatusFromState(state?: FbLaunchMediaState): MediaItemForDisplay['adStatus'] {
-  if (!state) return 'waiting';
-
-  if (state.stage === 'done' && state.adId) return 'created';
-  if (state.stage === 'ad' && state.status === 'in_progress') return 'creating';
-  if (state.stage === 'ad') return 'waiting'; // Queued for ad creation
-  if (state.stage === 'failed') return 'failed';
-
-  return 'waiting';
+function mapAdStatus(state: MediaItemState, adId?: string | null): MediaItemForDisplay['adStatus'] {
+  switch (state) {
+    case 'done': return 'created';
+    case 'creating_ad': return 'creating';
+    case 'failed': return adId ? 'created' : 'failed';
+    default: return 'waiting';
+  }
 }
 
-/**
- * Calculate overall progress percentage based on phase and media state
- */
-function calculateOverallProgress(phase: LaunchPhase, mediaItems: MediaItemForDisplay[]): number {
-  const total = mediaItems.length || 1;
+function calculateOverallProgress(phase: LaunchPhase, stats: FbLaunchState['stats'] | null): number {
+  if (!stats || stats.total === 0) return 0;
+  const total = stats.total;
 
   switch (phase) {
-    case 'idle':
-      return 0;
-    case 'checking':
-      return 2;
+    case 'idle': return 0;
+    case 'checking': return 2;
     case 'uploading': {
-      const ready = mediaItems.filter(m => m.uploadStatus === 'ready' || m.uploadStatus === 'processing').length;
-      return 5 + Math.round((ready / total) * 20);
+      const uploaded = stats.processing + stats.ready + stats.creatingAd + stats.done;
+      return 5 + Math.round((uploaded / total) * 20);
     }
     case 'polling': {
-      const ready = mediaItems.filter(m => m.uploadStatus === 'ready').length;
+      const ready = stats.ready + stats.creatingAd + stats.done;
       return 25 + Math.round((ready / total) * 20);
     }
-    case 'creating_campaign':
-      return 50;
+    case 'creating_campaign': return 50;
     case 'creating_ads': {
-      const created = mediaItems.filter(m => m.adStatus === 'created').length;
-      return 55 + Math.round((created / total) * 40);
+      return 55 + Math.round((stats.done / total) * 40);
     }
-    case 'complete':
-      return 100;
+    case 'complete': return 100;
     case 'error':
-    case 'stopped':
-      return 0;
-    default:
-      return 0;
+    case 'stopped': return 0;
+    default: return 0;
   }
+}
+
+function formatElapsed(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
+/** Sort: done first, then in-progress, then waiting, then failed */
+const STATE_SORT_ORDER: Record<MediaItemState, number> = {
+  done: 0,
+  creating_ad: 1,
+  ready: 2,
+  processing: 3,
+  uploading: 4,
+  queued: 5,
+  failed: 6,
+};
+
+function sortMediaItems(items: MediaItemForDisplay[]): MediaItemForDisplay[] {
+  return [...items].sort((a, b) => STATE_SORT_ORDER[a.itemState] - STATE_SORT_ORDER[b.itemState]);
 }
 
 // =============================================================================
@@ -237,35 +285,36 @@ export function LaunchProgressView({
   adAccountId,
   onBackToProduct,
 }: LaunchProgressViewProps) {
-  // Derive phase from progress state or fallback to launchResult
   const phase: LaunchPhase = progress?.phase || (launchResult?.success ? 'complete' : launchResult?.error ? 'error' : 'idle');
+  const stats = progress?.stats || null;
   const mediaItems = buildMediaItems(selectedVideos, selectedImages, progress);
-  const overallProgress = calculateOverallProgress(phase, mediaItems);
-  const stepStatuses = getStepStatuses(phase);
+  const overallProgress = calculateOverallProgress(phase, stats);
+  const stepStatuses = getStepStatuses(phase, stats);
 
-  const uploadedCount = mediaItems.filter(m => m.uploadStatus === 'ready').length;
-  const adsCreatedCount = mediaItems.filter(m => m.adStatus === 'created').length;
-  const totalMedia = mediaItems.length;
+  const videoItems = sortMediaItems(mediaItems.filter(m => m.type === 'video'));
+  const imageItems = sortMediaItems(mediaItems.filter(m => m.type === 'image'));
 
-  // Get stats from progress state
-  const stats = progress?.stats;
-  const pollingCount = stats?.poll?.waiting || 0;
-
-  // Phase checks using new phase names
-  const isCheckingPhase = phase === 'checking';
-  const isUploadPhase = phase === 'uploading' || phase === 'polling';
-  const isAdPhase = phase === 'creating_ads';
-  const isSetupPhase = phase === 'creating_campaign';
   const isComplete = phase === 'complete';
   const isFailed = phase === 'error';
   const isStopped = phase === 'stopped';
+  const isFinished = isComplete || isFailed || isStopped;
 
   const adsManagerUrl = adAccountId
     ? `https://business.facebook.com/adsmanager/manage/campaigns?act=${adAccountId.replace('act_', '')}`
     : null;
 
+  const rateColor = (progress?.rate || 0) > 80 ? 'error.main' : (progress?.rate || 0) > 50 ? 'warning.main' : 'text.secondary';
+
+  // Summary counts for table headers
+  const videoDone = videoItems.filter(m => m.itemState === 'done').length;
+  const videoFailed = videoItems.filter(m => m.itemState === 'failed').length;
+  const videoInProgress = videoItems.length - videoDone - videoFailed - videoItems.filter(m => m.itemState === 'queued').length;
+  const imageDone = imageItems.filter(m => m.itemState === 'done').length;
+  const imageFailed = imageItems.filter(m => m.itemState === 'failed').length;
+  const imageInProgress = imageItems.length - imageDone - imageFailed - imageItems.filter(m => m.itemState === 'queued').length;
+
   return (
-    <Box sx={{ maxWidth: 750, mx: 'auto', py: 3 }}>
+    <Box sx={{ py: 3 }}>
       <Paper
         elevation={0}
         sx={{
@@ -275,149 +324,9 @@ export function LaunchProgressView({
           overflow: 'hidden',
         }}
       >
-        {/* Header */}
-        <Box sx={{ p: 3, textAlign: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
-            {isComplete ? (
-              <CheckCircleIcon sx={{ color: 'success.main', fontSize: 28 }} />
-            ) : isFailed ? (
-              <ErrorOutlineIcon sx={{ color: 'error.main', fontSize: 28 }} />
-            ) : (
-              <RocketLaunchIcon sx={{ color: 'primary.main' }} />
-            )}
-            <Typography sx={textLg}>
-              {isComplete ? 'Launch Complete!' : isFailed ? 'Launch Failed' : campaignName}
-            </Typography>
-          </Box>
-
-          {/* Timeline - hide on complete/failed/stopped */}
-          {!isComplete && !isFailed && !isStopped && (
-            <>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-                <TimelineStep label="Validate" status={stepStatuses.validate} />
-                <TimelineConnector done={stepStatuses.validate === 'done'} />
-                <TimelineStep label="Upload" status={stepStatuses.upload} detail={`${uploadedCount}/${totalMedia}`} />
-                <TimelineConnector done={stepStatuses.upload === 'done'} />
-                <TimelineStep label="Campaign" status={stepStatuses.setup} subLabel="& AdSet" />
-                <TimelineConnector done={stepStatuses.setup === 'done'} />
-                <TimelineStep label="Ads" status={stepStatuses.ads} detail={`${adsCreatedCount}/${totalMedia}`} />
-                <TimelineConnector done={stepStatuses.ads === 'done'} />
-                <TimelineStep label="Done" status={stepStatuses.done} />
-              </Box>
-
-              <Box sx={{ px: 2 }}>
-                <LinearProgress
-                  variant="determinate"
-                  value={overallProgress}
-                  sx={{ height: 6, borderRadius: 3 }}
-                />
-                <Typography sx={{ ...helperText, mt: 0.5, display: 'block' }}>
-                  {overallProgress}% complete
-                </Typography>
-              </Box>
-            </>
-          )}
-        </Box>
-
-        {/* Current Action Section */}
-        <Box sx={{ p: 2.5 }}>
-          {/* Upload Phase (includes uploading and polling) */}
-          {isUploadPhase && (
-            <>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography sx={textMd}>
-                  {phase === 'uploading' ? 'Uploading Videos' : 'Processing Videos'}
-                </Typography>
-                <Typography sx={helperText}>
-                  {uploadedCount}/{totalMedia} ready
-                </Typography>
-              </Box>
-              <Typography sx={{ ...helperText, mb: 2, display: 'block' }}>
-                {phase === 'uploading'
-                  ? 'Sending videos to Facebook...'
-                  : `Waiting for Facebook to process ${pollingCount} video${pollingCount !== 1 ? 's' : ''}...`}
-              </Typography>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                {mediaItems
-                  .filter(m => m.uploadStatus !== 'pending' && m.uploadStatus !== 'ready')
-                  .slice(0, 5)
-                  .map(item => (
-                    <UploadItemRow key={item.id} item={item} />
-                  ))}
-                {mediaItems
-                  .filter(m => m.uploadStatus === 'ready')
-                  .slice(0, 3)
-                  .map(item => (
-                    <UploadItemRow key={item.id} item={item} />
-                  ))}
-              </Box>
-
-              {mediaItems.filter(m => m.uploadStatus === 'pending').length > 0 && (
-                <Typography sx={{ ...helperText, mt: 1.5, display: 'block' }}>
-                  Queue: {mediaItems.filter(m => m.uploadStatus === 'pending').map(m => m.name).slice(0, 3).join(', ')}
-                  {mediaItems.filter(m => m.uploadStatus === 'pending').length > 3 &&
-                    ` +${mediaItems.filter(m => m.uploadStatus === 'pending').length - 3} more`}
-                </Typography>
-              )}
-            </>
-          )}
-
-          {/* Checking Phase */}
-          {isCheckingPhase && (
-            <>
-              <Typography sx={{ ...textMd, mb: 1 }}>
-                Checking Library
-              </Typography>
-              <Typography sx={{ ...helperText, display: 'block' }}>
-                Looking for existing videos in your ad account...
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Spinner />
-              </Box>
-            </>
-          )}
-
-          {/* Setup Phase (Campaign & Ad Set) */}
-          {isSetupPhase && (
-            <>
-              <Typography sx={{ ...textMd, mb: 1 }}>
-                Creating Campaign & Ad Set
-              </Typography>
-              <Typography sx={{ ...helperText, display: 'block' }}>
-                Setting up campaign and ad set on Facebook Ads Manager...
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Spinner />
-              </Box>
-            </>
-          )}
-
-          {/* Ads Phase */}
-          {isAdPhase && (
-            <>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography sx={textMd}>
-                  Creating Ads
-                </Typography>
-                <Typography sx={helperText}>
-                  {adsCreatedCount}/{totalMedia} created
-                </Typography>
-              </Box>
-              <Typography sx={{ ...helperText, mb: 2, display: 'block' }}>
-                Building ad creatives on Facebook...
-              </Typography>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 250, overflow: 'auto' }}>
-                {mediaItems.map(item => (
-                  <AdItemRow key={item.id} item={item} />
-                ))}
-              </Box>
-            </>
-          )}
-
-          {/* Post-launch states: stopped, failed, complete */}
-          {(isStopped || isFailed || isComplete) && (
+        {/* Post-launch states: stopped, failed, complete */}
+        {isFinished ? (
+          <Box sx={{ p: 2.5 }}>
             <LaunchCompletionView
               phase={isStopped ? 'stopped' : isFailed ? 'error' : 'complete'}
               campaignName={campaignName}
@@ -427,50 +336,149 @@ export function LaunchProgressView({
               adsManagerUrl={adsManagerUrl}
               onBackToProduct={onBackToProduct}
             />
-          )}
-        </Box>
+          </Box>
+        ) : (
+          <>
+            {/* ============================================================= */}
+            {/* HEADER: Campaign name + progress bar + metadata               */}
+            {/* ============================================================= */}
+            <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <RocketLaunchIcon sx={{ color: 'primary.main' }} />
+                <Typography sx={{ ...textLg, flex: 1 }}>{campaignName}</Typography>
+              </Box>
 
-        {/* Footer - Completed Items (only during progress, not on complete) */}
-        {!isComplete && !isFailed && !isStopped && (progress?.campaignId || progress?.adsetId) && (
-          <Box
-            sx={{
-              px: 2.5,
-              py: 1.5,
-              borderTop: '1px solid',
-              borderColor: 'divider',
-              display: 'flex',
-              gap: 3,
-              flexWrap: 'wrap',
-            }}
-          >
-            {progress?.campaignId && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <CheckCircleIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-                <Typography sx={{ ...textSm, fontWeight: 500 }}>Campaign</Typography>
-                <Typography sx={{ ...textXs, color: 'text.secondary', fontFamily: 'monospace' }}>
-                  {progress.campaignId}
+              <LinearProgress
+                variant="determinate"
+                value={overallProgress}
+                sx={{ height: 6, borderRadius: 3, mb: 1 }}
+              />
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography sx={helperText}>
+                  {overallProgress}% complete
+                  {progress?.elapsed ? ` \u00B7 Elapsed: ${formatElapsed(progress.elapsed)}` : ''}
+                </Typography>
+                <Typography sx={{ ...helperText, color: rateColor }}>
+                  API Rate: {progress?.rate || 0}%
+                </Typography>
+              </Box>
+
+              {/* Campaign & Ad Set IDs */}
+              {(progress?.campaignId || progress?.adsetId) && (
+                <Box sx={{ display: 'flex', gap: 3, mt: 1.5, flexWrap: 'wrap' }}>
+                  {progress?.campaignId && (
+                    <Typography sx={{ ...textXs, color: 'text.secondary' }}>
+                      Campaign: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.campaignId}</Box>
+                    </Typography>
+                  )}
+                  {progress?.adsetId && (
+                    <Typography sx={{ ...textXs, color: 'text.secondary' }}>
+                      Ad Set: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.adsetId}</Box>
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+
+            {/* ============================================================= */}
+            {/* STEPS SUMMARY ROW                                             */}
+            {/* ============================================================= */}
+            <Box sx={{ display: 'flex', gap: 1.5, p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <StepCard label="Upload" status={stepStatuses.upload.status} detail={stepStatuses.upload.label} />
+              <StepCard label="Processing" status={stepStatuses.processing.status} detail={stepStatuses.processing.label} />
+              <StepCard label="Campaign" status={stepStatuses.campaign.status} detail={stepStatuses.campaign.label} />
+              <StepCard label="Ads" status={stepStatuses.ads.status} detail={stepStatuses.ads.label} />
+            </Box>
+
+            {/* ============================================================= */}
+            {/* TICK SUMMARY BAR                                              */}
+            {/* ============================================================= */}
+            {progress?.tickSummary && (
+              <Box sx={{ px: 2.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+                <Typography sx={{ ...textXs, color: 'text.secondary' }}>
+                  Tick {progress.tick}/{progress.maxTicks} — {progress.tickSummary}
                 </Typography>
               </Box>
             )}
-            {progress?.adsetId && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <CheckCircleIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-                <Typography sx={{ ...textSm, fontWeight: 500 }}>Ad Set</Typography>
-                <Typography sx={{ ...textXs, color: 'text.secondary', fontFamily: 'monospace' }}>
-                  {progress.adsetId}
-                </Typography>
+
+            {/* ============================================================= */}
+            {/* MEDIA TABLES — side by side                                   */}
+            {/* ============================================================= */}
+            <Box sx={{ display: 'flex', gap: 0, borderBottom: '1px solid', borderColor: 'divider', minHeight: 200 }}>
+              {/* VIDEOS TABLE */}
+              {videoItems.length > 0 && (
+                <Box sx={{
+                  flex: 1,
+                  p: 2.5,
+                  borderRight: imageItems.length > 0 ? '1px solid' : 'none',
+                  borderColor: 'divider',
+                  minWidth: 0,
+                }}>
+                  <Typography sx={{ ...textSm, fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
+                    Videos ({videoItems.length}: {videoDone} done
+                    {videoInProgress > 0 ? ` \u00B7 ${videoInProgress} in progress` : ''}
+                    {videoFailed > 0 ? ` \u00B7 ${videoFailed} failed` : ''})
+                  </Typography>
+
+                  {/* Column headers */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, px: 0.5 }}>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 180, minWidth: 100 }}>Name</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', flex: 1 }}>Progress</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>State</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Video ID</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Ad ID</Typography>
+                  </Box>
+
+                  <Box sx={{ maxHeight: 400, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                    {videoItems.map(item => (
+                      <MediaItemRow key={item.id} item={item} showVideoId />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* IMAGES TABLE */}
+              {imageItems.length > 0 && (
+                <Box sx={{
+                  flex: 1,
+                  p: 2.5,
+                  minWidth: 0,
+                }}>
+                  <Typography sx={{ ...textSm, fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
+                    Images ({imageItems.length}: {imageDone} done
+                    {imageInProgress > 0 ? ` \u00B7 ${imageInProgress} in progress` : ''}
+                    {imageFailed > 0 ? ` \u00B7 ${imageFailed} failed` : ''})
+                  </Typography>
+
+                  {/* Column headers */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, px: 0.5 }}>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 180, minWidth: 100 }}>Name</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', flex: 1 }}>Progress</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>State</Typography>
+                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Ad ID</Typography>
+                  </Box>
+
+                  <Box sx={{ maxHeight: 400, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                    {imageItems.map(item => (
+                      <MediaItemRow key={item.id} item={item} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+
+            {/* ============================================================= */}
+            {/* CANCEL BUTTON                                                 */}
+            {/* ============================================================= */}
+            {isLaunching && onCancel && (
+              <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+                <Button variant="outlined" color="inherit" size="small" onClick={onCancel}>
+                  Stop
+                </Button>
               </Box>
             )}
-          </Box>
-        )}
-
-        {/* Cancel Button (only during progress) */}
-        {isLaunching && onCancel && !isComplete && !isFailed && !isStopped && (
-          <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
-            <Button variant="outlined" color="inherit" size="small" onClick={onCancel}>
-              Stop
-            </Button>
-          </Box>
+          </>
         )}
       </Paper>
     </Box>
@@ -481,85 +489,46 @@ export function LaunchProgressView({
 // SUB-COMPONENTS
 // =============================================================================
 
-function Spinner() {
+function StepCard({ label, status, detail }: { label: string; status: StepStatus; detail: string }) {
   return (
     <Box
       sx={{
-        width: 32,
-        height: 32,
-        borderRadius: '50%',
-        border: '3px solid',
-        borderColor: 'primary.main',
-        borderTopColor: 'transparent',
-        animation: 'spin 1s linear infinite',
-        '@keyframes spin': {
-          '0%': { transform: 'rotate(0deg)' },
-          '100%': { transform: 'rotate(360deg)' },
-        },
+        flex: 1,
+        p: 1.5,
+        border: '1px solid',
+        borderColor: status === 'done' ? 'success.main' : status === 'active' ? 'primary.main' : 'divider',
+        borderRadius: 1,
+        bgcolor: status === 'active' ? 'primary.50' : 'transparent',
+        textAlign: 'center',
       }}
-    />
-  );
-}
-
-interface TimelineStepProps {
-  label: string;
-  subLabel?: string;
-  status: StepStatus;
-  detail?: string;
-}
-
-function TimelineStep({ label, subLabel, status, detail }: TimelineStepProps) {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 55 }}>
-      <Box
-        sx={{
-          width: 24,
-          height: 24,
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: status === 'done' ? 'success.main' : status === 'active' ? 'primary.main' : 'grey.300',
-          mb: 0.5,
-        }}
-      >
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.25 }}>
         {status === 'done' ? (
-          <CheckCircleIcon sx={{ fontSize: 16, color: 'white' }} />
+          <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} />
         ) : status === 'active' ? (
-          <Box
+          <AutorenewIcon
             sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              bgcolor: 'white',
-              animation: 'pulse 1.5s ease-in-out infinite',
-              '@keyframes pulse': {
-                '0%, 100%': { opacity: 1 },
-                '50%': { opacity: 0.4 },
-              },
+              fontSize: 14,
+              color: 'primary.main',
+              animation: 'spin 2s linear infinite',
+              '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } },
             }}
           />
         ) : (
-          <RadioButtonUncheckedIcon sx={{ fontSize: 14, color: 'white' }} />
+          <RadioButtonUncheckedIcon sx={{ fontSize: 14, color: 'grey.400' }} />
         )}
-      </Box>
-      <Typography
-        sx={{
-          ...textXs,
-          fontWeight: status === 'active' ? 600 : 400,
-          color: status === 'pending' ? 'text.disabled' : 'text.primary',
-          lineHeight: 1.2,
-        }}
-      >
-        {label}
-      </Typography>
-      {subLabel && (
-        <Typography sx={{ ...textXs, fontSize: '0.5625rem', color: 'text.secondary', lineHeight: 1 }}>
-          {subLabel}
+        <Typography
+          sx={{
+            ...textSm,
+            fontWeight: status === 'active' ? 600 : 500,
+            color: status === 'pending' ? 'text.disabled' : 'text.primary',
+          }}
+        >
+          {label}
         </Typography>
-      )}
+      </Box>
       {detail && (
-        <Typography sx={{ ...textXs, fontSize: '0.5625rem', color: 'text.secondary' }}>
+        <Typography sx={{ ...textXs, color: status === 'done' ? 'success.main' : 'text.secondary' }}>
           {detail}
         </Typography>
       )}
@@ -567,137 +536,103 @@ function TimelineStep({ label, subLabel, status, detail }: TimelineStepProps) {
   );
 }
 
-function TimelineConnector({ done }: { done: boolean }) {
+function MediaItemRow({ item, showVideoId }: { item: MediaItemForDisplay; showVideoId?: boolean }) {
+  const isFailed = item.itemState === 'failed';
+  const isDone = item.itemState === 'done';
+  const isActive = !isDone && !isFailed && item.itemState !== 'queued';
+
+  const progressColor = isDone ? 'success.main' : isFailed ? 'error.main' : 'primary.main';
+  const stateColor = isDone ? 'success.main' : isFailed ? 'error.main' : isActive ? 'primary.main' : 'text.disabled';
+
   return (
     <Box
       sx={{
-        width: 30,
-        height: 2,
-        bgcolor: done ? 'success.main' : 'grey.300',
-        mx: 0.5,
-        mt: -2,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        py: 0.5,
+        px: 0.5,
+        borderRadius: 0.5,
+        bgcolor: isFailed ? 'error.50' : 'transparent',
+        '&:hover': { bgcolor: isFailed ? 'error.100' : 'action.hover' },
       }}
-    />
-  );
-}
-
-interface UploadItemRowProps {
-  item: MediaItemForDisplay;
-}
-
-function UploadItemRow({ item }: UploadItemRowProps) {
-  const getStatusText = () => {
-    switch (item.uploadStatus) {
-      case 'sent': return 'Sent to Facebook';
-      case 'fb-downloading': return 'FB downloading file...';
-      case 'processing': return item.uploadProgress ? `Processing ${item.uploadProgress}%` : 'Processing...';
-      case 'ready': return 'Ready';
-      case 'failed': return item.error || 'Failed';
-      default: return 'Waiting';
-    }
-  };
-
-  const getProgressWidth = () => {
-    switch (item.uploadStatus) {
-      case 'sent': return '10%';
-      case 'fb-downloading': return '30%';
-      case 'processing': return `${30 + (item.uploadProgress || 0) * 0.7}%`;
-      case 'ready': return '100%';
-      default: return '0%';
-    }
-  };
-
-  const isActive = item.uploadStatus !== 'pending' && item.uploadStatus !== 'ready';
-
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+    >
+      {/* Name */}
       <Typography
         sx={{
           ...textSm,
-          fontWeight: isActive ? 500 : 400,
-          minWidth: 160,
-          maxWidth: 160,
+          width: 180,
+          minWidth: 100,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
+          fontWeight: isActive ? 500 : 400,
         }}
         title={item.name}
       >
         {item.name}
       </Typography>
-      <Box sx={{ flex: 1, height: 6, bgcolor: 'grey.200', borderRadius: 3, overflow: 'hidden' }}>
+
+      {/* Progress bar */}
+      <Box sx={{ flex: 1, height: 6, bgcolor: 'grey.200', borderRadius: 3, overflow: 'hidden', minWidth: 60 }}>
         <Box
           sx={{
-            width: getProgressWidth(),
+            width: `${item.progressPercent}%`,
             height: '100%',
-            bgcolor: item.uploadStatus === 'ready' ? 'success.main' : item.uploadStatus === 'failed' ? 'error.main' : 'primary.main',
+            bgcolor: progressColor,
             borderRadius: 3,
             transition: 'width 0.3s ease',
           }}
         />
       </Box>
+
+      {/* State label */}
       <Typography
         sx={{
           ...textXs,
-          color: item.uploadStatus === 'ready' ? 'success.main' : item.uploadStatus === 'failed' ? 'error.main' : 'text.secondary',
-          minWidth: 120,
+          color: stateColor,
+          width: 100,
           textAlign: 'right',
+          fontWeight: isActive ? 500 : 400,
         }}
       >
-        {getStatusText()}
+        {item.stateLabel}
       </Typography>
-    </Box>
-  );
-}
 
-interface AdItemRowProps {
-  item: MediaItemForDisplay;
-}
-
-function AdItemRow({ item }: AdItemRowProps) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
-      {item.adStatus === 'created' ? (
-        <CheckCircleIcon sx={{ fontSize: 14, color: 'success.main' }} />
-      ) : item.adStatus === 'creating' ? (
-        <Box
+      {/* Video ID (only for videos table) */}
+      {showVideoId && (
+        <Typography
           sx={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            border: '2px solid',
-            borderColor: 'primary.main',
-            borderTopColor: 'transparent',
-            animation: 'spin 1s linear infinite',
-            '@keyframes spin': {
-              '0%': { transform: 'rotate(0deg)' },
-              '100%': { transform: 'rotate(360deg)' },
-            },
+            ...textXs,
+            color: 'text.secondary',
+            fontFamily: 'monospace',
+            width: 100,
+            textAlign: 'right',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
-        />
-      ) : (
-        <RadioButtonUncheckedIcon sx={{ fontSize: 14, color: 'grey.400' }} />
+          title={item.fbVideoId || ''}
+        >
+          {item.fbVideoId || '\u2014'}
+        </Typography>
       )}
+
+      {/* Ad ID */}
       <Typography
         sx={{
-          ...textSm,
-          flex: 1,
+          ...textXs,
+          color: 'text.secondary',
+          fontFamily: 'monospace',
+          width: 100,
+          textAlign: 'right',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          color: item.adStatus === 'waiting' ? 'text.secondary' : 'text.primary',
         }}
-        title={item.name}
+        title={item.adId || ''}
       >
-        {item.name}
-      </Typography>
-      <Typography
-        sx={{
-          ...textXs,
-          color: item.adStatus === 'created' ? 'success.main' : item.adStatus === 'creating' ? 'primary.main' : 'text.disabled',
-        }}
-      >
-        {item.adStatus === 'created' ? 'Ad created' : item.adStatus === 'creating' ? 'Creating...' : 'Waiting'}
+        {item.adId || '\u2014'}
       </Typography>
     </Box>
   );

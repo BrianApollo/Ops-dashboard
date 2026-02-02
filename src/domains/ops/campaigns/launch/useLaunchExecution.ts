@@ -109,8 +109,8 @@ export function useLaunchExecution({
   useEffect(() => {
     if (pipeline.launchProgress) {
       setLaunchResult((prev) => ({
-        success: pipeline.launchProgress?.phase === 'complete',
         ...prev,
+        success: pipeline.launchProgress?.phase === 'complete',
         campaignId: pipeline.launchProgress?.campaignId || prev?.campaignId,
         adSetId: pipeline.launchProgress?.adsetId || prev?.adSetId,
         error: pipeline.launchProgress?.error || prev?.error,
@@ -194,9 +194,9 @@ export function useLaunchExecution({
           preset: selectedPreset ? {
             id: selectedPreset.id,
             name: selectedPreset.name,
-            primaryTexts: selectedPreset.primaryTexts,
-            headlines: selectedPreset.headlines,
-            descriptions: selectedPreset.descriptions,
+            primaryTexts: draft.primaryTexts,
+            headlines: draft.headlines,
+            descriptions: draft.descriptions,
             callToAction: selectedPreset.callToAction,
           } : undefined,
           videosWithUrls: videosWithUrls.map(v => ({

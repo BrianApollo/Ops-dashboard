@@ -310,8 +310,7 @@ export const VIDEO_POLL_MAX_ATTEMPTS = 240; // 120 attempts * 5s = 10 minutes
 // Re-export types from fbLaunchRunner for convenience
 export type {
   MediaType as FbMediaType,
-  MediaStage as FbMediaStage,
-  MediaStatus as FbMediaStatus,
+  MediaItemState as FbMediaItemState,
   LaunchPhase as FbLaunchPhase,
   FbLaunchMediaInput,
   FbLaunchMediaState,
