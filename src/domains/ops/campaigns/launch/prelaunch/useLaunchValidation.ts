@@ -54,6 +54,13 @@ export function useLaunchValidation({
         name: 'Assets',
         checks: [
           { id: 'preset', label: 'Ad preset', group: 'assets', passed: !!draft.adPresetId },
+          {
+            id: 'link-replaced',
+            label: '{{link}} replaced',
+            group: 'assets',
+            passed: !draft.primaryTexts.concat(draft.headlines, draft.descriptions)
+              .some(t => t.includes('{{link}}')),
+          },
           { id: 'creatives', label: 'At least 1 creative', group: 'assets', passed: hasValidCreatives },
           { id: 'valid-status', label: 'Valid statuses', group: 'assets', passed: !hasValidCreatives || (allVideosValid && allImagesValid) },
         ],

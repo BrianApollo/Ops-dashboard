@@ -260,29 +260,26 @@ export function ProductsPage() {
     }
   };
 
-  const handleAssignScript = async (scriptId: string, editorId?: string) => {
-    // Find the script to get its data
-    const script = scriptsController.scripts.find((s) => s.id === scriptId);
-    if (!script) {
-      console.error(`Script not found: ${scriptId}`);
-      alert('Script not found. It may have been deleted.');
-      return;
-    }
+  const handleBulkAssignScripts = async (scriptIds: string[], editorId?: string) => {
+    const scripts = scriptIds
+      .map(id => scriptsController.scripts.find(s => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+      .map(s => ({ id: s.id, name: s.name, product: s.product }));
 
-    // Videos controller owns video creation (correct architectural layer)
-    // Same function handles both cases - editorId undefined = all editors
+    if (scripts.length === 0) return;
+
     try {
-      await videosController.assignScriptToEditors(
-        { id: script.id, name: script.name, product: script.product },
-        editorId
-      );
+      await videosController.bulkAssignScriptsToEditor(scripts, editorId);
     } catch (error) {
-      console.error('Failed to assign script:', error);
-      alert(`Failed to assign script: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to assign scripts:', error);
     }
   };
 
-  // Video status/notes handlers
+  // Single-script assign reuses the bulk path
+  const handleAssignScript = (scriptId: string, editorId?: string) => {
+    handleBulkAssignScripts([scriptId], editorId);
+  };
+
   // Video status/notes handlers
   const [isUpdatingVideo, setIsUpdatingVideo] = useState(false);
 
@@ -559,7 +556,8 @@ export function ProductsPage() {
             videos={filteredVideos}
             showProductColumn={showProductColumn}
             onAssign={handleAssignScript}
-            assigningScriptId={videosController.assigningScriptId}
+            assigningScriptIds={videosController.assigningScriptIds}
+            onBulkAssign={handleBulkAssignScripts}
             editors={videosController.editorOptions.filter((e): e is { value: string; label: string } => e.value !== null)}
             onVideoStatusChange={handleVideoStatusChange}
             onVideoNotesChange={handleVideoNotesChange}
@@ -570,7 +568,6 @@ export function ProductsPage() {
             getHooksForScript={scriptsController.getHooksForScript}
             extractScriptNumber={scriptsController.extractScriptNumber}
             onRequestScrollstoppers={videosController.requestScrollstoppers}
-            isRequestingScrollstoppers={videosController.requestingScrollstoppersForScript !== null}
             selectedProductId={productIdParam ?? null}
             selectedProductName={selectedProduct?.name ?? null}
             authorOptions={scriptsController.authorOptions}

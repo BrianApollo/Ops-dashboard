@@ -72,18 +72,13 @@ const initialState: FbLaunchState = {
   campaignId: null,
   adsetId: null,
   tick: 0,
+  maxTicks: 30,
   rate: 0,
   startTime: null,
   elapsed: 0,
   media: [],
-  stats: {
-    upload: { queued: 0, inProgress: 0, failed: 0 },
-    poll: { waiting: 0 },
-    ad: { queued: 0, inProgress: 0, failed: 0 },
-    done: 0,
-    failed: 0,
-    total: 0,
-  },
+  stats: { queued: 0, uploading: 0, processing: 0, ready: 0, creatingAd: 0, done: 0, failed: 0, total: 0 },
+  tickSummary: null,
 };
 
 // =============================================================================

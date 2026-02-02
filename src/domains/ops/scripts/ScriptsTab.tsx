@@ -7,6 +7,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
+import Checkbox from '@mui/material/Checkbox';
+import Slide from '@mui/material/Slide';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
@@ -34,6 +36,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import CloseIcon from '@mui/icons-material/Close';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SearchIcon from '@mui/icons-material/Search';
@@ -70,7 +73,8 @@ interface ScriptsTabProps {
   videos: VideoAsset[];
   showProductColumn: boolean;
   onAssign: (scriptId: string, editorId?: string) => void;
-  assigningScriptId: string | null;
+  assigningScriptIds: Set<string>;
+  onBulkAssign?: (scriptIds: string[], editorId?: string) => void;
   editors: { value: string; label: string }[];
   onVideoStatusChange?: (videoId: string, status: 'todo' | 'available') => Promise<void>;
   onVideoNotesChange?: (videoId: string, notes: string) => Promise<void>;
@@ -96,7 +100,6 @@ interface ScriptsTabProps {
     editorIds: string[];
     count: number;
   }) => Promise<void>;
-  isRequestingScrollstoppers?: boolean;
   // External navigation (from Videos tab)
   initialScriptIdToOpen?: string | null;
   onScriptOpened?: () => void;
@@ -112,7 +115,8 @@ export function ScriptsTab({
   videos,
   showProductColumn,
   onAssign,
-  assigningScriptId,
+  assigningScriptIds,
+  onBulkAssign,
   editors,
   onVideoStatusChange,
   onVideoNotesChange,
@@ -123,7 +127,6 @@ export function ScriptsTab({
   getHooksForScript,
   extractScriptNumber,
   onRequestScrollstoppers,
-  isRequestingScrollstoppers = false,
   initialScriptIdToOpen,
   onScriptOpened,
   // selectedProductId,
@@ -139,6 +142,7 @@ export function ScriptsTab({
 
   // Assign menu state
   const [assignMenuAnchor, setAssignMenuAnchor] = useState<{ element: HTMLElement; scriptId: string } | null>(null);
+  const [bulkAssignMenuAnchor, setBulkAssignMenuAnchor] = useState<HTMLElement | null>(null);
 
   // Script editing state
   const [scriptContentValue, setScriptContentValue] = useState('');
@@ -259,7 +263,7 @@ export function ScriptsTab({
   }
 
   // Calculate column count for colspan
-  const columnCount = 4 + (showProductColumn ? 1 : 0);
+  const columnCount = 5 + (showProductColumn ? 1 : 0);
 
   return (
     <Box>
@@ -316,6 +320,14 @@ export function ScriptsTab({
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  <TableCell sx={{ ...tableHeaderCellSx, width: 48, px: 1 }}>
+                    <Checkbox
+                      size="small"
+                      checked={list.visibleRecords.length > 0 && list.visibleRecords.every(r => list.isSelected(r.id))}
+                      indeterminate={list.hasSelection && !list.visibleRecords.every(r => list.isSelected(r.id))}
+                      onChange={() => list.hasSelection ? list.clearSelection() : list.selectAll()}
+                    />
+                  </TableCell>
                   <TableCell sx={{ ...tableHeaderCellSx, width: 48, px: 1 }} />
                   <TableCell sx={tableHeaderCellSx}>Script</TableCell>
                   {showProductColumn && (
@@ -343,6 +355,17 @@ export function ScriptsTab({
                           '&:last-child td': isExpanded ? {} : { borderBottom: 0 },
                         }}
                       >
+                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()} sx={{ px: 1 }}>
+                          {assigningScriptIds.has(script.id) ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            <Checkbox
+                              size="small"
+                              checked={list.isSelected(script.id)}
+                              onChange={() => list.toggleSelection(script.id)}
+                            />
+                          )}
+                        </TableCell>
                         <TableCell sx={{ py: 1.5, px: 1 }}>
                           <IconButton
                             size="small"
@@ -394,17 +417,17 @@ export function ScriptsTab({
                             <Button
                               size="small"
                               variant="contained"
-                              disabled={assigningScriptId !== null}
+                              disabled={assigningScriptIds.has(script.id)}
                               onClick={(e) => handleOpenAssignMenu(e, script.id)}
                               endIcon={
-                                assigningScriptId === script.id ? (
+                                assigningScriptIds.has(script.id) ? (
                                   <CircularProgress size={16} color="inherit" />
                                 ) : (
                                   <KeyboardArrowDownIcon />
                                 )
                               }
                             >
-                              {assigningScriptId === script.id ? 'Assigning...' : 'Assign'}
+                              {assigningScriptIds.has(script.id) ? 'Assigning...' : 'Assign'}
                             </Button>
                           )}
                         </TableCell>
@@ -527,7 +550,7 @@ export function ScriptsTab({
                     return fullVideo?.editor.name === editor.label;
                   });
                   const isAssigned = editorVideos.length > 0;
-                  const canAssign = !isAssigned && assigningScriptId === null;
+                  const canAssign = !isAssigned && !assigningScriptIds.has(detailScript.id);
                   return (
                     <Chip
                       key={editor.value}
@@ -568,9 +591,9 @@ export function ScriptsTab({
                       <Button
                         size="small"
                         variant="contained"
-                        startIcon={assigningScriptId === detailScript.id ? <CircularProgress size={14} color="inherit" /> : <PeopleIcon />}
+                        startIcon={assigningScriptIds.has(detailScript.id) ? <CircularProgress size={14} color="inherit" /> : <PeopleIcon />}
                         onClick={() => handleSidebarAssign()}
-                        disabled={assigningScriptId !== null}
+                        disabled={assigningScriptIds.has(detailScript.id)}
                         sx={{ fontSize: '0.75rem' }}
                       >
                         Assign All
@@ -585,7 +608,7 @@ export function ScriptsTab({
                           variant="outlined"
                           startIcon={<PersonIcon />}
                           onClick={() => handleSidebarAssign(editor.value)}
-                          disabled={assigningScriptId !== null}
+                          disabled={assigningScriptIds.has(detailScript.id)}
                           sx={{ fontSize: '0.75rem' }}
                         >
                           {editor.label}
@@ -824,7 +847,7 @@ export function ScriptsTab({
           videos={videos}
           editors={editors}
           onSubmit={onRequestScrollstoppers}
-          isSubmitting={isRequestingScrollstoppers}
+          isSubmitting={assigningScriptIds.has(detailScript.id)}
         />
       )}
 
@@ -843,6 +866,74 @@ export function ScriptsTab({
         <Divider />
         {editors.map((editor) => (
           <MenuItem key={editor.value} onClick={() => handleAssignToEditor(editor.value)}>
+            <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{editor.label}</ListItemText>
+          </MenuItem>
+        ))}
+      </Menu>
+
+      {/* Floating Bulk Action Bar */}
+      {onBulkAssign && (
+        <Slide direction="up" in={list.hasSelection} mountOnEnter unmountOnExit>
+          <Paper
+            elevation={8}
+            sx={{
+              position: 'fixed',
+              bottom: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1100,
+              borderRadius: 2,
+              px: 2,
+              py: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <IconButton size="small" onClick={list.clearSelection}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+            <Typography variant="body2" fontWeight={600}>
+              {list.selection.size} script{list.selection.size !== 1 ? 's' : ''} selected
+            </Typography>
+            <Divider orientation="vertical" flexItem />
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<PeopleIcon />}
+              endIcon={<KeyboardArrowDownIcon />}
+              onClick={(e) => setBulkAssignMenuAnchor(e.currentTarget)}
+            >
+              Assign
+            </Button>
+          </Paper>
+        </Slide>
+      )}
+
+      {/* Bulk Assign Editor Menu */}
+      <Menu
+        anchorEl={bulkAssignMenuAnchor}
+        open={!!bulkAssignMenuAnchor}
+        onClose={() => setBulkAssignMenuAnchor(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <MenuItem onClick={() => {
+          onBulkAssign!(Array.from(list.selection));
+          list.clearSelection();
+          setBulkAssignMenuAnchor(null);
+        }}>
+          <ListItemIcon><PeopleIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>All Editors</ListItemText>
+        </MenuItem>
+        <Divider />
+        {editors.map((editor) => (
+          <MenuItem key={editor.value} onClick={() => {
+            onBulkAssign!(Array.from(list.selection), editor.value);
+            list.clearSelection();
+            setBulkAssignMenuAnchor(null);
+          }}>
             <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
             <ListItemText>{editor.label}</ListItemText>
           </MenuItem>

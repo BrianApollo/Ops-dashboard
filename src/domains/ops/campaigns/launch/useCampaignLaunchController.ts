@@ -354,7 +354,17 @@ export function useCampaignLaunchController(
     websiteUrlFromRedtrack,
     setWebsiteUrlFromRedtrack,
     setDraft,
+    primaryTexts: draft.primaryTexts,
+    headlines: draft.headlines,
+    descriptions: draft.descriptions,
   });
+
+  // Auto-select first preset when presets load and none is selected
+  useEffect(() => {
+    if (!draft.adPresetId && productPresets.length > 0 && draftInitializedRef.current) {
+      updateDraft({ adPresetId: productPresets[0].id });
+    }
+  }, [productPresets, draft.adPresetId]);
 
   // Sync draft texts when Ad Preset is selected (once per preset change)
   const lastAppliedPresetId = useRef<string | null>(null);

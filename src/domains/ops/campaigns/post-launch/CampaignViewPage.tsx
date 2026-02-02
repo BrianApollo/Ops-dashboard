@@ -7,7 +7,7 @@
  * - Manage: Interactive management with inline editing, bulk operations
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -58,6 +58,7 @@ import { useProfilesController } from '../../../../features/profiles';
 import { fetchRedtrackReport, type RedTrackReportRow } from '../../../../features/redtrack';
 import type { Campaign, FbAdSet, FbAd, FbCreative } from '../../../../features/campaigns';
 import type { CampaignViewTab } from '../../products/composition/types';
+import { AddAdsModal } from './AddAdsModal';
 
 // RedTrack API key from environment
 const REDTRACK_API_KEY = import.meta.env.VITE_REDTRACK_API_KEY as string | undefined;
@@ -251,7 +252,7 @@ export function CampaignViewPage() {
           <RedTrackDataTab redtrackCampaignId={campaign.redtrackCampaignId} />
         )}
         {activeTab === 'launch-data' && (
-          <LaunchDataTab campaign={campaign} fbData={fbData} />
+          <LaunchDataTab campaign={campaign} />
         )}
       </Box>
     </Box>
@@ -264,137 +265,354 @@ export function CampaignViewPage() {
 
 interface LaunchDataTabProps {
   campaign: Campaign;
-  fbData: ReturnType<typeof useFacebookCampaign>;
 }
 
-function LaunchDataTab({ campaign, fbData }: LaunchDataTabProps) {
-  if (fbData.isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
+function LaunchDataTab({ campaign }: LaunchDataTabProps) {
+  const [showUtms, setShowUtms] = useState(false);
+  const [showPrimaryTexts, setShowPrimaryTexts] = useState(false);
+  const [showHeadlines, setShowHeadlines] = useState(false);
+  const [showDescriptions, setShowDescriptions] = useState(false);
+  const [showReferenceIds, setShowReferenceIds] = useState(false);
+  const [showAdIds, setShowAdIds] = useState(false);
+
+  // Parse launched data JSON
+  let snapshot: import('../../../../features/campaigns/launch/types').LaunchSnapshot | null = null;
+  if (campaign.launchedData) {
+    try {
+      snapshot = JSON.parse(campaign.launchedData);
+    } catch {
+      // Invalid JSON — fall through to null guard
+    }
   }
 
-  if (fbData.isError) {
+  if (!snapshot) {
     return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        Failed to load Facebook data: {fbData.error?.message}
-        <br />
-        Try selecting a different profile.
+      <Alert severity="info" sx={{ m: 2 }}>
+        No launch snapshot data available.
       </Alert>
     );
   }
 
-  if (!fbData.data) {
-    return (
-      <Alert severity="warning" sx={{ m: 2 }}>
-        No Facebook data available. Select a profile to load campaign data.
-      </Alert>
-    );
-  }
+  const { config, facebook, profile, adPreset, media, result } = snapshot;
 
-  const { campaign: fbCampaign, adSets, ads } = fbData.data;
+  // Determine result status
+  const resultStatus = result.success ? 'success' : result.partialSuccess ? 'partial' : 'failed';
+  const resultColor = resultStatus === 'success' ? 'success.50' : resultStatus === 'partial' ? 'warning.50' : 'error.50';
+  const resultBorderColor = resultStatus === 'success' ? 'success.200' : resultStatus === 'partial' ? 'warning.200' : 'error.200';
+  const chipColor = resultStatus === 'success' ? 'success' : resultStatus === 'partial' ? 'warning' : 'error';
+  const chipLabel = resultStatus === 'success' ? 'Success' : resultStatus === 'partial' ? 'Partial' : 'Failed';
+
+  const allFailed = [...media.videos.failed, ...media.images.failed];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Campaign Overview */}
+      {/* 1. Launch Result Banner */}
+      <Paper sx={{ p: 3, bgcolor: resultColor, border: '1px solid', borderColor: resultBorderColor }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <Chip label={chipLabel} color={chipColor as 'success' | 'warning' | 'error'} size="small" />
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {result.adsCreated}/{result.adsAttempted} ads created
+          </Typography>
+          {profile.name && (
+            <Typography variant="body2" color="text.secondary">
+              Profile: {profile.name}
+            </Typography>
+          )}
+          <Typography variant="body2" color="text.secondary">
+            {new Date(snapshot.launchedAt).toLocaleString()}
+          </Typography>
+        </Box>
+        {result.errors.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            {result.errors.map((err, i) => (
+              <Typography key={i} variant="caption" color="error.main" sx={{ display: 'block' }}>
+                {err.mediaName}: {err.message} ({err.stage})
+              </Typography>
+            ))}
+          </Box>
+        )}
+      </Paper>
+
+      {/* 2. Campaign */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Campaign Overview
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          <InfoBox label="Name" value={fbCampaign.name} />
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Campaign</Typography>
+        <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap', mb: 2 }}>
+          <InfoBox label="Name" value={config.campaignName} />
+          <InfoBox label="Budget" value={`$${(config.budgetCents / 100).toFixed(2)}/day`} />
           <InfoBox
             label="Status"
             value={
               <Chip
-                label={fbCampaign.status}
-                color={fbCampaign.status === 'ACTIVE' ? 'success' : 'default'}
+                label={config.launchStatus}
+                color={config.launchStatus === 'ACTIVE' ? 'success' : 'default'}
                 size="small"
               />
             }
           />
-          <InfoBox label="Budget" value={formatBudget(fbCampaign.daily_budget, fbCampaign.lifetime_budget)} />
-          <InfoBox label="Objective" value={fbCampaign.objective} />
-          <InfoBox label="Created" value={formatDate(fbCampaign.created_time)} />
         </Box>
+        <InfoRow label="Campaign ID" value={facebook.campaignId || 'N/A'} />
       </Paper>
 
-      {/* Campaign Info (Airtable) */}
+      {/* 3. Ad Set */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Campaign Info
-        </Typography>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Ad Set</Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <InfoRow label="Airtable Campaign ID" value={campaign.id} />
-          <InfoRow label="Facebook Campaign ID" value={campaign.fbCampaignId || 'N/A'} />
-          <InfoRow label="Ad Account ID" value={campaign.fbAdAccountId || 'N/A'} />
-          <InfoRow label="Launch Profile ID" value={campaign.launchProfileId || 'N/A'} />
-          <InfoRow label="Product" value={campaign.product.name} />
+          <InfoRow label="Ad Set ID" value={facebook.adSetId || 'N/A'} />
+          <InfoRow label="Targeting" value={config.geo.length > 0 ? config.geo.join(', ') : 'N/A'} />
+          <InfoRow label="Pixel ID" value={facebook.pixelId || 'N/A'} />
+          <InfoRow label="Start Date" value={config.startDate || 'N/A'} />
+          <InfoRow label="Start Time" value={config.startTime || 'N/A'} />
+          <InfoRow label="Website URL" value={config.websiteUrl || 'N/A'} />
         </Box>
       </Paper>
 
-      {/* Ad Sets */}
+      {/* 4. Ad Settings */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Ad Sets ({adSets.length})
-        </Typography>
-        {adSets.length === 0 ? (
-          <Typography color="text.secondary">No ad sets found</Typography>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {adSets.map((adSet) => {
-              const adSetAds = ads.filter((ad) => ad.adset_id === adSet.id);
-              return (
-                <Paper key={adSet.id} variant="outlined" sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                    <Typography sx={{ fontWeight: 500 }}>{adSet.name}</Typography>
-                    <Chip
-                      label={adSet.status}
-                      color={adSet.status === 'ACTIVE' ? 'success' : 'default'}
-                      size="small"
-                    />
-                    <Typography variant="body2" color="text.secondary">
-                      {formatBudget(adSet.daily_budget, adSet.lifetime_budget)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    {adSetAds.map((ad) => (
-                      <Paper key={ad.id} variant="outlined" sx={{ p: 1.5, width: 140, textAlign: 'center' }}>
-                        {ad.creative?.thumbnail_url ? (
-                          <Box
-                            component="img"
-                            src={ad.creative.thumbnail_url}
-                            alt={ad.name}
-                            sx={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 1, mb: 1 }}
-                          />
-                        ) : (
-                          <Box
-                            sx={{
-                              width: '100%',
-                              height: 80,
-                              bgcolor: 'grey.100',
-                              borderRadius: 1,
-                              mb: 1,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <Typography variant="caption" color="text.secondary">No preview</Typography>
-                          </Box>
-                        )}
-                        <Typography variant="caption" noWrap sx={{ display: 'block' }}>{ad.name}</Typography>
-                        <Chip label={ad.status} color={ad.status === 'ACTIVE' ? 'success' : 'default'} size="small" sx={{ mt: 0.5 }} />
-                      </Paper>
-                    ))}
-                  </Box>
-                </Paper>
-              );
-            })}
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Ad Settings</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <InfoRow label="Preset" value={adPreset?.name || 'N/A'} />
+          <InfoRow label="CTA" value={adPreset?.callToAction || config.ctaOverride || 'N/A'} />
+          <InfoRow label="Display Link" value={config.displayLink || 'N/A'} />
+        </Box>
+
+        {/* UTMs */}
+        {config.utms && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowUtms(!showUtms)}
+            >
+              {showUtms ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>UTMs</Typography>
+            </Box>
+            <Collapse in={showUtms}>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 1, pl: 3, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {config.utms}
+              </Typography>
+            </Collapse>
           </Box>
         )}
+
+        {/* Primary Texts */}
+        {adPreset?.primaryTexts && adPreset.primaryTexts.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowPrimaryTexts(!showPrimaryTexts)}
+            >
+              {showPrimaryTexts ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Primary Texts ({adPreset.primaryTexts.length})
+              </Typography>
+            </Box>
+            <Collapse in={showPrimaryTexts}>
+              <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {adPreset.primaryTexts.map((text, i) => (
+                  <Typography key={i} variant="body2">
+                    {i + 1}. {text}
+                  </Typography>
+                ))}
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+
+        {/* Headlines */}
+        {adPreset?.headlines && adPreset.headlines.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowHeadlines(!showHeadlines)}
+            >
+              {showHeadlines ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Headlines ({adPreset.headlines.length})
+              </Typography>
+            </Box>
+            <Collapse in={showHeadlines}>
+              <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {adPreset.headlines.map((text, i) => (
+                  <Typography key={i} variant="body2">
+                    {i + 1}. {text}
+                  </Typography>
+                ))}
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+
+        {/* Descriptions */}
+        {adPreset?.descriptions && adPreset.descriptions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowDescriptions(!showDescriptions)}
+            >
+              {showDescriptions ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Descriptions ({adPreset.descriptions.length})
+              </Typography>
+            </Box>
+            <Collapse in={showDescriptions}>
+              <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {adPreset.descriptions.map((text, i) => (
+                  <Typography key={i} variant="body2">
+                    {i + 1}. {text}
+                  </Typography>
+                ))}
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+      </Paper>
+
+      {/* 5. Creatives */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Creatives</Typography>
+
+        {/* Videos */}
+        {media.videos.succeeded.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+              Videos ({media.videos.succeeded.length})
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {media.videos.succeeded.map((v) => (
+                <Paper key={v.localId} variant="outlined" sx={{ p: 1.5, width: 140, textAlign: 'center' }}>
+                  {v.thumbnailUrl ? (
+                    <Box
+                      component="img"
+                      src={v.thumbnailUrl}
+                      alt={v.name}
+                      sx={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 1, mb: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: 80,
+                        bgcolor: 'grey.100',
+                        borderRadius: 1,
+                        mb: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">No thumbnail</Typography>
+                    </Box>
+                  )}
+                  <Typography variant="caption" noWrap sx={{ display: 'block' }}>{v.name}</Typography>
+                </Paper>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Images */}
+        {media.images.succeeded.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+              Images ({media.images.succeeded.length})
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {media.images.succeeded.map((img) => (
+                <Paper key={img.localId} variant="outlined" sx={{ p: 1.5, width: 140, textAlign: 'center' }}>
+                  {img.imageUrl ? (
+                    <Box
+                      component="img"
+                      src={img.imageUrl}
+                      alt={img.name}
+                      sx={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 1, mb: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: 80,
+                        bgcolor: 'grey.100',
+                        borderRadius: 1,
+                        mb: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">No preview</Typography>
+                    </Box>
+                  )}
+                  <Typography variant="caption" noWrap sx={{ display: 'block' }}>{img.name}</Typography>
+                </Paper>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Failed Media */}
+        {allFailed.length > 0 && (
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1, color: 'error.main' }}>
+              Failed ({allFailed.length})
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {allFailed.map((f, i) => (
+                <Typography key={i} variant="caption" color="error.main">
+                  {f.name} — {f.error} ({f.failedAt})
+                </Typography>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {media.videos.succeeded.length === 0 && media.images.succeeded.length === 0 && allFailed.length === 0 && (
+          <Typography color="text.secondary">No media data recorded.</Typography>
+        )}
+      </Paper>
+
+      {/* 6. Reference IDs */}
+      <Paper sx={{ p: 3 }}>
+        <Box
+          sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setShowReferenceIds(!showReferenceIds)}
+        >
+          {showReferenceIds ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Reference IDs</Typography>
+        </Box>
+        <Collapse in={showReferenceIds}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+            <InfoRow label="Ad Account" value={facebook.adAccountId || 'N/A'} />
+            <InfoRow label="Page" value={facebook.pageId || 'N/A'} />
+            <InfoRow label="Pixel" value={facebook.pixelId || 'N/A'} />
+            <InfoRow label="Campaign ID" value={facebook.campaignId || 'N/A'} />
+            <InfoRow label="Ad Set ID" value={facebook.adSetId || 'N/A'} />
+            <InfoRow label="RedTrack ID" value={snapshot.redtrack?.campaignId || 'N/A'} />
+            <InfoRow label="Profile ID" value={profile.id || 'N/A'} />
+
+            {/* Ad IDs */}
+            {facebook.adIds.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                  onClick={() => setShowAdIds(!showAdIds)}
+                >
+                  {showAdIds ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    Ad IDs ({facebook.adIds.length})
+                  </Typography>
+                </Box>
+                <Collapse in={showAdIds}>
+                  <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {facebook.adIds.map((adId, i) => (
+                      <Typography key={i} variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {adId}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Collapse>
+              </Box>
+            )}
+          </Box>
+        </Collapse>
       </Paper>
     </Box>
   );
@@ -628,7 +846,7 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
 
   // Modal state
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
-  const [addAdsOpen, setAddAdsOpen] = useState<{ adSetId: string; templateAdId: string } | null>(null);
+  const [addAdsOpen, setAddAdsOpen] = useState<{ adSetId: string; templateCreativeId: string } | null>(null);
 
   if (fbData.isLoading) {
     return (
@@ -899,7 +1117,7 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
                     onClick={() => {
                       const templateAd = adSetAds[0];
                       if (templateAd?.creative?.id) {
-                        setAddAdsOpen({ adSetId: adSet.id, templateAdId: templateAd.creative.id });
+                        setAddAdsOpen({ adSetId: adSet.id, templateCreativeId: templateAd.creative.id });
                       } else {
                         alert('No template ad found in this ad set');
                       }
@@ -957,8 +1175,8 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
           open={!!addAdsOpen}
           onClose={() => setAddAdsOpen(null)}
           adSetId={addAdsOpen.adSetId}
-          templateCreativeId={addAdsOpen.templateAdId}
-          campaignId={campaign.fbCampaignId!}
+          templateCreativeId={addAdsOpen.templateCreativeId}
+          campaignRecord={campaign}
           adAccountId={adAccountId}
           accessToken={accessToken}
           onSuccess={() => {
@@ -1237,211 +1455,52 @@ function BulkEditModal({ open, onClose, selectedAds, campaignId, adAccountId, ac
   );
 }
 
+
+
 // =============================================================================
-// ADD ADS MODAL
+// HELPER COMPONENTS
 // =============================================================================
 
-interface AddAdsModalProps {
-  open: boolean;
-  onClose: () => void;
-  adSetId: string;
-  templateCreativeId: string;
-  campaignId: string;
-  adAccountId: string;
-  accessToken: string;
-  onSuccess: () => void;
+function InfoBox({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 500 }}>{value}</Typography>
+    </Box>
+  );
 }
 
-function AddAdsModal({ open, onClose, adSetId, templateCreativeId, campaignId, adAccountId, accessToken, onSuccess }: AddAdsModalProps) {
-  const [creatives, setCreatives] = useState<Array<{ url: string; name: string }>>([{ url: '', name: '' }]);
-  const [utm, setUtm] = useState('');
-  const [templateCreative, setTemplateCreative] = useState<FbCreative | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState<{ current: number; total: number; message: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Load template creative on mount
-  useEffect(() => {
-    const loadTemplate = async () => {
-      try {
-        const creative = await getFbCreative(templateCreativeId, accessToken);
-        setTemplateCreative(creative);
-        if (creative.url_tags) {
-          setUtm(creative.url_tags);
-        }
-      } catch (err) {
-        setError(`Failed to load template: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadTemplate();
-  }, [templateCreativeId, accessToken]);
-
-  const addCreativeRow = () => {
-    setCreatives([...creatives, { url: '', name: '' }]);
-  };
-
-  const removeCreativeRow = (index: number) => {
-    setCreatives(creatives.filter((_, i) => i !== index));
-  };
-
-  const updateCreative = (index: number, field: 'url' | 'name', value: string) => {
-    const updated = [...creatives];
-    updated[index][field] = value;
-    // Auto-fill name from URL
-    if (field === 'url' && !updated[index].name) {
-      updated[index].name = extractFilenameFromUrl(value);
-    }
-    setCreatives(updated);
-  };
-
-  const handleSubmit = async () => {
-    const validCreatives = creatives.filter((c) => c.url.trim());
-    if (validCreatives.length === 0) {
-      setError('Please enter at least one video URL');
-      return;
-    }
-
-    setError(null);
-    setProgress({ current: 0, total: validCreatives.length, message: 'Starting...' });
-
-    let successCount = 0;
-    const errors: string[] = [];
-
-    for (let i = 0; i < validCreatives.length; i++) {
-      const { url, name } = validCreatives[i];
-      const finalName = name || extractFilenameFromUrl(url);
-      const directUrl = convertToDirectUrl(url);
-
-      setProgress({ current: i + 1, total: validCreatives.length, message: `Creating ${i + 1}/${validCreatives.length}: ${finalName}` });
-
-      try {
-        await swapAdCreative({
-          adAccountId,
-          adSetId,
-          templateCreativeId,
-          videoUrl: directUrl,
-          name: finalName,
-          utm: utm || undefined,
-          accessToken,
-        });
-        successCount++;
-      } catch (err) {
-        errors.push(`${finalName}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-    }
-
-    setProgress(null);
-
-    if (errors.length > 0) {
-      setError(`Completed with ${errors.length} error(s):\n${errors.join('\n')}`);
-    } else {
-      alert(`Successfully created ${successCount} ad${successCount !== 1 ? 's' : ''}!`);
-      onSuccess();
-      onClose();
-    }
-  };
-
-  if (loading) {
-    return (
-      <Dialog open={open} onClose={onClose}>
-        <DialogContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
-            <CircularProgress size={24} />
-            <Typography>Loading template settings...</Typography>
-          </Box>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Add Ads</DialogTitle>
-      <DialogContent>
-        {/* Template Info */}
-        {templateCreative && (
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>Settings copied from template:</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Page ID: {templateCreative.object_story_spec?.page_id || 'N/A'}
-              {' • '}
-              CTA: {templateCreative.object_story_spec?.video_data?.call_to_action?.type || 'N/A'}
-            </Typography>
-          </Box>
-        )}
-
-        {/* Creative Rows */}
-        <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>Creatives (Videos):</Typography>
-        {creatives.map((creative, index) => (
-          <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'flex-start' }}>
-            <Typography sx={{ width: 24, pt: 1, color: 'text.secondary' }}>{index + 1}.</Typography>
-            <TextField
-              size="small"
-              placeholder="Video URL (Google Drive or direct link)"
-              value={creative.url}
-              onChange={(e) => updateCreative(index, 'url', e.target.value)}
-              sx={{ flex: 2 }}
-              disabled={!!progress}
-            />
-            <TextField
-              size="small"
-              placeholder={creative.url ? extractFilenameFromUrl(creative.url) : 'Ad Name'}
-              value={creative.name}
-              onChange={(e) => updateCreative(index, 'name', e.target.value)}
-              sx={{ flex: 1 }}
-              disabled={!!progress}
-            />
-            {creatives.length > 1 && (
-              <IconButton size="small" onClick={() => removeCreativeRow(index)} disabled={!!progress}>
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
-        ))}
-        <Button size="small" onClick={addCreativeRow} disabled={!!progress} sx={{ mt: 1 }}>
-          + Add Another
-        </Button>
-
-        <TextField
-          label="UTM Parameters (applied to all)"
-          fullWidth
-          value={utm}
-          onChange={(e) => setUtm(e.target.value)}
-          placeholder="utm_source=facebook&utm_medium=paid"
-          sx={{ mt: 2 }}
-          disabled={!!progress}
-        />
-
-        {progress && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>{progress.message}</Typography>
-            <LinearProgress variant="determinate" value={(progress.current / progress.total) * 100} />
-          </Box>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mt: 2, whiteSpace: 'pre-wrap' }}>{error}</Alert>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={!!progress}>Cancel</Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={!!progress || !creatives.some((c) => c.url.trim())}
-        >
-          {progress ? 'Creating...' : 'Create Ads'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <Box sx={{ display: 'flex', gap: 2 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 160 }}>{label}:</Typography>
+      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{value}</Typography>
+    </Box>
   );
 }
 
 // =============================================================================
-// CREATIVE SWAP HELPER
+// HELPER FUNCTIONS
+// =============================================================================
+
+function formatBudget(daily?: string, lifetime?: string): string {
+  if (daily) {
+    const dollars = parseInt(daily) / 100;
+    return `$${dollars.toFixed(2)}/day`;
+  }
+  if (lifetime) {
+    const dollars = parseInt(lifetime) / 100;
+    return `$${dollars.toFixed(2)} lifetime`;
+  }
+  return 'No budget set';
+}
+
+function formatDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString();
+}
+
+// =============================================================================
+// CREATIVE SWAP HELPER (used by BulkEditModal)
 // =============================================================================
 
 interface SwapAdCreativeParams {
@@ -1464,10 +1523,8 @@ async function swapAdCreative({
   accessToken,
 }: SwapAdCreativeParams): Promise<{ adId: string; creativeId: string }> {
   // 1. Upload video
-  console.log('Uploading video:', videoUrl);
   const videoResult = await uploadFbVideo(adAccountId, videoUrl, name, accessToken);
   const videoId = videoResult.id;
-  console.log('Video uploaded:', videoId);
 
   // 2. Wait for video to be ready
   let videoReady = false;
@@ -1476,7 +1533,6 @@ async function swapAdCreative({
     await new Promise((resolve) => setTimeout(resolve, 5000));
     const status = await getFbVideoStatus(videoId, accessToken);
     const videoStatus = status.status?.video_status;
-    console.log(`Video status check ${attempts + 1}:`, videoStatus);
 
     if (videoStatus === 'ready') {
       videoReady = true;
@@ -1536,7 +1592,6 @@ async function swapAdCreative({
 
   // 6. Create creative
   const newCreative = await createFbCreative(adAccountId, creativeParams, accessToken);
-  console.log('Creative created:', newCreative.id);
 
   // 7. Create ad
   const newAd = await createFbAd(
@@ -1549,84 +1604,29 @@ async function swapAdCreative({
     },
     accessToken
   );
-  console.log('Ad created:', newAd.id);
 
   return { adId: newAd.id, creativeId: newCreative.id };
 }
 
-// =============================================================================
-// HELPER COMPONENTS
-// =============================================================================
-
-function InfoBox({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <Box>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
-      <Typography variant="body2" sx={{ fontWeight: 500 }}>{value}</Typography>
-    </Box>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <Box sx={{ display: 'flex', gap: 2 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 160 }}>{label}:</Typography>
-      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{value}</Typography>
-    </Box>
-  );
-}
-
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
-
-function formatBudget(daily?: string, lifetime?: string): string {
-  if (daily) {
-    const dollars = parseInt(daily) / 100;
-    return `$${dollars.toFixed(2)}/day`;
-  }
-  if (lifetime) {
-    const dollars = parseInt(lifetime) / 100;
-    return `$${dollars.toFixed(2)} lifetime`;
-  }
-  return 'No budget set';
-}
-
-function formatDate(isoString: string): string {
-  return new Date(isoString).toLocaleDateString();
-}
-
-/**
- * Convert Google Drive share URL to direct download URL.
- * Also handles Cloudflare R2 URLs (returns as-is).
- */
 function convertToDirectUrl(url: string): string {
-  // Handle Cloudflare R2 URLs (already direct)
   if (url.includes('.r2.dev/') || url.includes('r2.cloudflarestorage.com')) {
     return url;
   }
-
-  // Handle Google Drive share URLs
   const driveMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   if (driveMatch) {
     return `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
   }
-
-  // Return as-is if not recognized
   return url;
 }
 
-/**
- * Extract filename from URL for auto-generating ad names.
- */
 function extractFilenameFromUrl(url: string): string {
   try {
     const urlObj = new URL(url);
     const pathname = urlObj.pathname;
     const filename = pathname.split('/').pop() || '';
-    // Remove extension and clean up
     return filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim() || 'Untitled';
   } catch {
     return 'Untitled';
   }
 }
+

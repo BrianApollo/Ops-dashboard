@@ -103,6 +103,9 @@ export interface Campaign {
   /** Profile ID used for launch (for access token retrieval) */
   launchProfileId?: string;
 
+  /** Full JSON snapshot of everything at launch time (stored in Airtable) */
+  launchedData?: string;
+
   // ==========================================================================
   // DRAFT DATA (saved via Save Draft / auto-save)
   // ==========================================================================

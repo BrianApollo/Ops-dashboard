@@ -2,9 +2,9 @@
  * Pipeline Flow - Orchestration Logic
  *
  * This file manages:
- * - State tracking for all media items
+ * - State tracking for all media items (single state field per item)
  * - Batching logic
- * - Tick loop for polling
+ * - Progress-aware tick loop for polling
  * - Retry logic with fallback URLs
  * - Start/stop/resume controls
  *
@@ -23,8 +23,20 @@ import type {
 // =============================================================================
 
 export type MediaType = 'video' | 'image';
-export type MediaStage = 'upload' | 'poll' | 'ad' | 'done' | 'failed';
-export type MediaStatus = 'queued' | 'in_progress' | 'retry' | 'completed' | 'failed';
+
+/**
+ * Single state per media item. Each value represents exactly where the item is
+ * in the pipeline — no ambiguous stage/status combinations.
+ */
+export type MediaItemState =
+  | 'queued'        // Waiting to upload (video) or waiting for ad creation (image)
+  | 'uploading'     // Upload API call in flight
+  | 'processing'    // Uploaded to FB, waiting for FB to finish processing
+  | 'ready'         // FB processing done, ready for ad creation
+  | 'creating_ad'   // Ad creation API call in flight
+  | 'done'          // Ad created successfully
+  | 'failed';       // Gave up after maxRetries
+
 export type LaunchPhase =
   | 'idle'
   | 'checking'
@@ -45,8 +57,7 @@ export interface FbLaunchMediaInput {
 }
 
 export interface FbLaunchMediaState extends FbLaunchMediaInput {
-  stage: MediaStage;
-  status: MediaStatus;
+  state: MediaItemState;
   retryCount: number;
   usedFallback: boolean;
   fbVideoId: string | null;
@@ -65,6 +76,8 @@ export interface FbLaunchOptions {
   initialPollDelayMs?: number;
   maxTicks?: number;
   maxRetries?: number;
+  /** Exit tick loop after this many consecutive ticks with no new completions */
+  maxStaleTicks?: number;
 }
 
 export interface FbLaunchInput {
@@ -79,20 +92,13 @@ export interface FbLaunchInput {
   options?: FbLaunchOptions;
 }
 
+/** Flat stats — one count per state */
 export interface FbLaunchStats {
-  upload: {
-    queued: number;
-    inProgress: number;
-    failed: number;
-  };
-  poll: {
-    waiting: number;
-  };
-  ad: {
-    queued: number;
-    inProgress: number;
-    failed: number;
-  };
+  queued: number;
+  uploading: number;
+  processing: number;
+  ready: number;
+  creatingAd: number;
   done: number;
   failed: number;
   total: number;
@@ -105,11 +111,14 @@ export interface FbLaunchState {
   campaignId: string | null;
   adsetId: string | null;
   tick: number;
+  maxTicks: number;
   rate: number;
   startTime: number | null;
   elapsed: number;
   media: FbLaunchMediaState[];
-  stats?: FbLaunchStats;
+  stats: FbLaunchStats;
+  /** Summary of what happened on the latest tick */
+  tickSummary: string | null;
   error?: string;
 }
 
@@ -133,23 +142,23 @@ function delay(ms: number): Promise<void> {
 
 export function getStats(media: FbLaunchMediaState[]): FbLaunchStats {
   return {
-    upload: {
-      queued: media.filter(m => m.type === 'video' && m.stage === 'upload' && m.status === 'queued').length,
-      inProgress: media.filter(m => m.type === 'video' && m.stage === 'upload' && m.status === 'in_progress').length,
-      failed: media.filter(m => m.type === 'video' && m.stage === 'upload' && m.status === 'failed').length,
-    },
-    poll: {
-      waiting: media.filter(m => m.type === 'video' && m.stage === 'poll').length,
-    },
-    ad: {
-      queued: media.filter(m => m.stage === 'ad' && (m.status === 'queued' || m.status === 'retry')).length,
-      inProgress: media.filter(m => m.stage === 'ad' && m.status === 'in_progress').length,
-      failed: media.filter(m => m.stage === 'ad' && m.status === 'failed').length,
-    },
-    done: media.filter(m => m.stage === 'done').length,
-    failed: media.filter(m => m.stage === 'failed').length,
+    queued: media.filter(m => m.state === 'queued').length,
+    uploading: media.filter(m => m.state === 'uploading').length,
+    processing: media.filter(m => m.state === 'processing').length,
+    ready: media.filter(m => m.state === 'ready').length,
+    creatingAd: media.filter(m => m.state === 'creating_ad').length,
+    done: media.filter(m => m.state === 'done').length,
+    failed: media.filter(m => m.state === 'failed').length,
     total: media.length,
   };
+}
+
+function safeParseBatchBody(body: string): { id?: string } | null {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
 }
 
 // =============================================================================
@@ -173,13 +182,13 @@ export function createController(
     campaignId: null,
     adsetId: null,
     tick: 0,
+    maxTicks: 30,
     rate: 0,
     startTime: null,
     elapsed: 0,
     media: input.media.map(item => ({
       ...item,
-      stage: (item.type === 'video' && !item.fbVideoId ? 'upload' : 'ad') as MediaStage,
-      status: 'queued' as MediaStatus,
+      state: (item.type === 'video' && !item.fbVideoId ? 'queued' : 'ready') as MediaItemState,
       retryCount: 0,
       usedFallback: false,
       fbVideoId: item.fbVideoId || null,
@@ -187,6 +196,8 @@ export function createController(
       adId: null,
       error: null,
     })),
+    stats: { queued: 0, uploading: 0, processing: 0, ready: 0, creatingAd: 0, done: 0, failed: 0, total: 0 },
+    tickSummary: null,
   };
 
   // Options with defaults
@@ -198,10 +209,13 @@ export function createController(
     uploadStaggerMs: 1000,
     tickIntervalMs: 10000,
     initialPollDelayMs: 8000,
-    maxTicks: 15,
+    maxTicks: 30,
     maxRetries: 3,
+    maxStaleTicks: 5,
     ...input.options,
   };
+
+  state.maxTicks = options.maxTicks;
 
   // ---------------------------------------------------------------------------
   // PROGRESS UPDATE
@@ -245,8 +259,7 @@ export function createController(
           if (existing && existing.status?.video_status === 'ready' && existing.picture) {
             video.fbVideoId = existing.id;
             video.thumbnailUrl = existing.picture;
-            video.stage = 'ad';
-            video.status = 'queued';
+            video.state = 'ready';
           }
         });
       }
@@ -267,7 +280,7 @@ export function createController(
     emitProgress();
 
     const toUpload = state.media.filter(
-      m => m.type === 'video' && m.stage === 'upload' && (m.status === 'queued' || m.status === 'retry')
+      m => m.type === 'video' && m.state === 'queued'
     );
 
     if (toUpload.length === 0) return;
@@ -278,8 +291,8 @@ export function createController(
       batches.push(toUpload.slice(i, i + options.uploadBatchSize));
     }
 
-    // Mark all as in_progress
-    toUpload.forEach(v => (v.status = 'in_progress'));
+    // Mark all as uploading
+    toUpload.forEach(v => (v.state = 'uploading'));
     emitProgress();
 
     // Upload batches with stagger
@@ -311,45 +324,43 @@ export function createController(
           data.forEach((item, idx) => {
             const video = batch[idx];
             if (item.code === 200) {
-              const body = JSON.parse(item.body);
-              if (body.id) {
+              const body = safeParseBatchBody(item.body);
+              if (body?.id) {
                 video.fbVideoId = body.id;
-                video.stage = 'poll';
-                video.status = 'queued';
+                video.state = 'processing';
               } else {
-                handleUploadFailure(video);
+                handleUploadFailure(video, body ? 'No video ID in response' : 'Malformed response');
               }
             } else {
-              handleUploadFailure(video);
+              handleUploadFailure(video, `HTTP ${item.code}`);
             }
           });
         } else {
           // Non-array response (error)
-          batch.forEach(video => handleUploadFailure(video));
+          batch.forEach(video => handleUploadFailure(video, 'Invalid batch response'));
         }
 
         emitProgress();
       } catch (err) {
         console.error('uploadVideoBatch error:', (err as Error).message);
-        batch.forEach(video => handleUploadFailure(video));
+        batch.forEach(video => handleUploadFailure(video, (err as Error).message));
         emitProgress();
       }
     }
   }
 
-  function handleUploadFailure(video: FbLaunchMediaState): void {
+  function handleUploadFailure(video: FbLaunchMediaState, reason?: string): void {
     video.retryCount++;
 
     // Try fallback URL if not used yet
     if (!video.usedFallback && video.fallbackUrl) {
       video.usedFallback = true;
-      video.status = 'retry';
+      video.state = 'queued'; // Back to queue for retry
     } else if (video.retryCount < options.maxRetries) {
-      video.status = 'retry';
+      video.state = 'queued'; // Back to queue for retry
     } else {
-      video.stage = 'failed';
-      video.status = 'failed';
-      video.error = 'Max retries exceeded';
+      video.state = 'failed';
+      video.error = reason || 'Max retries exceeded';
     }
   }
 
@@ -361,7 +372,7 @@ export function createController(
 
     state.phase = 'polling';
 
-    const toPoll = state.media.filter(m => m.type === 'video' && m.stage === 'poll' && m.fbVideoId);
+    const toPoll = state.media.filter(m => m.type === 'video' && m.state === 'processing' && m.fbVideoId);
 
     if (toPoll.length === 0) return;
 
@@ -377,8 +388,7 @@ export function createController(
           const libEntry = libraryMap.get(video.fbVideoId!);
           if (libEntry && libEntry.status?.video_status === 'ready' && libEntry.picture) {
             video.thumbnailUrl = libEntry.picture;
-            video.stage = 'ad';
-            video.status = 'queued';
+            video.state = 'ready';
           }
         });
       }
@@ -448,9 +458,7 @@ export function createController(
 
     state.phase = 'creating_ads';
 
-    const toCreate = state.media.filter(
-      m => m.stage === 'ad' && (m.status === 'queued' || m.status === 'retry')
-    );
+    const toCreate = state.media.filter(m => m.state === 'ready');
 
     if (toCreate.length === 0) return;
 
@@ -463,8 +471,8 @@ export function createController(
     for (const batch of batches) {
       if (state.isStopped) break;
 
-      // Mark as in_progress
-      batch.forEach(m => (m.status = 'in_progress'));
+      // Mark as creating_ad
+      batch.forEach(m => (m.state = 'creating_ad'));
       emitProgress();
 
       try {
@@ -483,59 +491,60 @@ export function createController(
           data.forEach((item, idx) => {
             const media = batch[idx];
             if (item.code === 200) {
-              const body = JSON.parse(item.body);
-              if (body.id) {
+              const body = safeParseBatchBody(item.body);
+              if (body?.id) {
                 media.adId = body.id;
-                media.stage = 'done';
-                media.status = 'completed';
+                media.state = 'done';
               } else {
-                handleAdFailure(media);
+                handleAdFailure(media, body ? 'No ad ID in response' : 'Malformed response');
               }
             } else {
-              handleAdFailure(media);
+              handleAdFailure(media, `HTTP ${item.code}`);
             }
           });
         } else {
           // Non-array response (error)
-          batch.forEach(media => handleAdFailure(media));
+          batch.forEach(media => handleAdFailure(media, 'Invalid batch response'));
         }
 
         emitProgress();
       } catch (err) {
         console.error('createAdsBatch error:', (err as Error).message);
-        batch.forEach(media => handleAdFailure(media));
+        batch.forEach(media => handleAdFailure(media, (err as Error).message));
         emitProgress();
       }
     }
   }
 
-  function handleAdFailure(media: FbLaunchMediaState): void {
+  function handleAdFailure(media: FbLaunchMediaState, reason?: string): void {
     media.retryCount++;
 
     // Try fallback URL for images
     if (media.type === 'image' && !media.usedFallback && media.fallbackUrl) {
       media.usedFallback = true;
       media.url = media.fallbackUrl;
-      media.status = 'retry';
+      media.state = 'ready'; // Back to ready for retry
     } else if (media.retryCount < options.maxRetries) {
-      media.status = 'retry';
+      media.state = 'ready'; // Back to ready for retry
     } else {
-      media.stage = 'failed';
-      media.status = 'failed';
-      media.error = 'Max retries exceeded';
+      media.state = 'failed';
+      media.error = reason || 'Max retries exceeded';
     }
   }
 
   // ---------------------------------------------------------------------------
-  // TICK LOOP
+  // TICK LOOP (progress-aware)
   // ---------------------------------------------------------------------------
   async function runTickLoop(): Promise<void> {
-    // Initial poll delay
+    // Initial poll delay — give Facebook time to start processing
     await delay(options.initialPollDelayMs);
+
+    let staleTicks = 0;
 
     while (state.tick < options.maxTicks && !state.isStopped) {
       state.tick++;
-      emitProgress();
+
+      const doneBefore = getStats(state.media).done;
 
       // 1. Poll videos waiting for processing
       await pollVideos();
@@ -543,23 +552,47 @@ export function createController(
       // 2. Create ads for ready items
       await createAds();
 
-      // 3. Retry failed uploads
+      // 3. Retry failed uploads (items moved back to queued)
       const hasUploadRetries = state.media.some(
-        m => m.type === 'video' && m.stage === 'upload' && m.status === 'retry'
+        m => m.type === 'video' && m.state === 'queued' && m.retryCount > 0
       );
       if (hasUploadRetries) {
         await uploadVideos();
       }
 
-      // 4. Check if done
-      const stats = getStats(state.media);
-      if (stats.done + stats.failed === stats.total) {
+      // 4. Calculate progress and build tick summary
+      const statsAfter = getStats(state.media);
+      const newDone = statsAfter.done - doneBefore;
+      const newReady = statsAfter.ready;
+      const stillProcessing = statsAfter.processing;
+
+      const parts: string[] = [];
+      if (newDone > 0) parts.push(`${newDone} ad${newDone !== 1 ? 's' : ''} created`);
+      if (newReady > 0) parts.push(`${newReady} ready`);
+      if (stillProcessing > 0) parts.push(`${stillProcessing} processing`);
+      if (statsAfter.failed > 0) parts.push(`${statsAfter.failed} failed`);
+      state.tickSummary = parts.length > 0 ? parts.join(' · ') : 'Waiting...';
+
+      emitProgress();
+
+      // 5. Check if all items are finished
+      if (statsAfter.done + statsAfter.failed === statsAfter.total) {
         state.phase = 'complete';
         emitProgress();
         break;
       }
 
-      // 5. Wait before next tick
+      // 6. Track stale ticks (no new completions)
+      if (newDone > 0) {
+        staleTicks = 0;
+      } else {
+        staleTicks++;
+        if (staleTicks >= options.maxStaleTicks) {
+          break; // Will be caught by honest completion check below
+        }
+      }
+
+      // 7. Wait before next tick
       if (state.tick < options.maxTicks && !state.isStopped) {
         await delay(options.tickIntervalMs);
       }
@@ -598,10 +631,18 @@ export function createController(
       // Step 4: Run tick loop (poll + create ads)
       await runTickLoop();
 
-      // Final state
-      if (!state.isStopped) {
-        state.phase = 'complete';
+      // Honest completion check — only report complete if everything is actually done
+      if (!state.isStopped && state.phase !== 'complete') {
+        const finalStats = getStats(state.media);
+        if (finalStats.done + finalStats.failed === finalStats.total) {
+          state.phase = 'complete';
+        } else {
+          const pending = finalStats.total - finalStats.done - finalStats.failed;
+          state.phase = 'error';
+          state.error = `Launch timed out: ${finalStats.done}/${finalStats.total} ads created, ${pending} still processing on Facebook`;
+        }
       }
+
       state.isRunning = false;
       emitProgress();
 
@@ -638,17 +679,16 @@ export function createController(
   // ---------------------------------------------------------------------------
   function retryFailed(): void {
     state.media.forEach(m => {
-      if (m.status === 'failed') {
-        m.status = 'retry';
+      if (m.state === 'failed') {
         m.retryCount = 0;
         m.error = null;
-        // Reset stage based on type and what's missing
+        // Reset state based on type and what's missing
         if (m.type === 'video' && !m.fbVideoId) {
-          m.stage = 'upload';
+          m.state = 'queued';
         } else if (m.type === 'video' && !m.thumbnailUrl) {
-          m.stage = 'poll';
+          m.state = 'processing';
         } else {
-          m.stage = 'ad';
+          m.state = 'ready';
         }
       }
     });
