@@ -17,6 +17,7 @@ import type {
   AdSetConfig,
   AdCreativeConfig,
 } from './fbLaunchApi';
+import { processVideoUploadQueue } from './utils/uploadHelpers';
 
 // =============================================================================
 // TYPES
@@ -285,68 +286,44 @@ export function createController(
 
     if (toUpload.length === 0) return;
 
-    // Split into batches
-    const batches: FbLaunchMediaState[][] = [];
-    for (let i = 0; i < toUpload.length; i += options.uploadBatchSize) {
-      batches.push(toUpload.slice(i, i + options.uploadBatchSize));
-    }
-
-    // Mark all as uploading
-    toUpload.forEach(v => (v.state = 'uploading'));
-    emitProgress();
-
-    // Upload batches with stagger
-    for (let i = 0; i < batches.length; i++) {
-      if (state.isStopped) break;
-
-      const batch = batches[i];
-
-      // Stagger between batches
-      if (i > 0) {
-        await delay(options.uploadStaggerMs);
-      }
-
-      try {
-        const videosToSend = batch.map(v => ({
-          name: v.name,
-          url: v.usedFallback ? (v.fallbackUrl || v.url) : v.url,
-        }));
-
-        const { data, rate } = await fb.uploadVideoBatch(
-          input.accessToken,
-          input.adAccountId,
-          videosToSend
-        );
-        state.rate = rate;
-
-        // Handle response
-        if (Array.isArray(data)) {
-          data.forEach((item, idx) => {
-            const video = batch[idx];
-            if (item.code === 200) {
-              const body = safeParseBatchBody(item.body);
-              if (body?.id) {
-                video.fbVideoId = body.id;
-                video.state = 'processing';
-              } else {
-                handleUploadFailure(video, body ? 'No video ID in response' : 'Malformed response');
-              }
-            } else {
-              handleUploadFailure(video, `HTTP ${item.code}`);
+    // Use shared video upload helper
+    await processVideoUploadQueue(
+      toUpload.map(v => ({
+        id: v.name, // Use name as ID
+        name: v.name,
+        url: v.usedFallback ? (v.fallbackUrl || v.url) : v.url,
+      })),
+      {
+        accessToken: input.accessToken,
+        adAccountId: input.adAccountId,
+        batchSize: options.uploadBatchSize,
+        delayBetweenBatchesMs: options.uploadStaggerMs,
+        shouldStop: () => state.isStopped,
+        onBatchStart: (batch: { name: string }[]) => {
+          // Update state to uploading
+          // We need to map back to the original media objects
+          const names = new Set(batch.map(b => b.name));
+          state.media.forEach(m => {
+            if (m.type === 'video' && names.has(m.name)) {
+              m.state = 'uploading';
             }
           });
-        } else {
-          // Non-array response (error)
-          batch.forEach(video => handleUploadFailure(video, 'Invalid batch response'));
-        }
+          emitProgress();
+        },
+        onItemComplete: (result: { item: { name: string }, success: boolean, fbVideoId?: string, error?: string }) => {
+          const video = state.media.find(m => m.name === result.item.name && m.type === 'video');
+          if (!video) return;
 
-        emitProgress();
-      } catch (err) {
-        console.error('uploadVideoBatch error:', (err as Error).message);
-        batch.forEach(video => handleUploadFailure(video, (err as Error).message));
-        emitProgress();
+          if (result.success && result.fbVideoId) {
+            video.fbVideoId = result.fbVideoId;
+            video.state = 'processing';
+          } else {
+            handleUploadFailure(video, result.error);
+          }
+          emitProgress();
+        }
       }
-    }
+    );
   }
 
   function handleUploadFailure(video: FbLaunchMediaState, reason?: string): void {
