@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as fbLaunchApi from '../../../../../features/campaigns/launch/fbLaunchApi';
+import { processVideoUploadQueue } from '../../../../../features/campaigns/launch/utils/uploadHelpers';
 
 // =============================================================================
 // TYPES
@@ -304,71 +305,40 @@ export function usePrelaunchUploader({
     });
 
     try {
-      // Upload in batches of 10
-      const batches: VideoForUpload[][] = [];
-      for (let i = 0; i < videosToUpload.length; i += 10) {
-        batches.push(videosToUpload.slice(i, i + 10));
-      }
-
-      for (const batch of batches) {
-        // Mark batch as uploading
-        batch.forEach(v => {
-          updateVideoState(v.name, { status: 'uploading' });
-        });
-
-        const { data } = await fbLaunchApi.uploadVideoBatch(
+      // Use shared helper
+      await processVideoUploadQueue(
+        videosToUpload.map(v => ({
+          id: v.name, // Use name as ID since it's unique in this context
+          name: v.name,
+          url: v.creativeLink!
+        })),
+        {
           accessToken,
           adAccountId,
-          batch.map(v => ({ name: v.name, url: v.creativeLink! }))
-        );
-
-        // Process responses
-        if (Array.isArray(data)) {
-          data.forEach((item, idx) => {
-            const video = batch[idx];
-            if (item.code === 200) {
-              try {
-                const body = JSON.parse(item.body);
-                if (body.id) {
-                  // Successfully uploaded, now processing
-                  updateVideoState(video.name, {
-                    status: 'processing',
-                    fbVideoId: body.id,
-                  });
-                } else {
-                  updateVideoState(video.name, {
-                    status: 'failed',
-                    error: 'No video ID returned',
-                  });
-                }
-              } catch {
-                updateVideoState(video.name, {
-                  status: 'failed',
-                  error: 'Invalid response',
-                });
-              }
+          batchSize: 10,
+          delayBetweenBatchesMs: 1000,
+          onBatchStart: (batch: { name: string }[]) => {
+            batch.forEach(item => {
+              updateVideoState(item.name, { status: 'uploading' });
+            });
+          },
+          onItemComplete: (result: { item: { name: string }, success: boolean, fbVideoId?: string, error?: string }) => {
+            if (result.success && result.fbVideoId) {
+              updateVideoState(result.item.name, {
+                status: 'processing',
+                fbVideoId: result.fbVideoId
+              });
             } else {
-              // Failed
-              let errorMsg = 'Upload failed';
-              try {
-                const body = JSON.parse(item.body);
-                errorMsg = body.error?.message || errorMsg;
-              } catch {
-                // ignore parse error
-              }
-              updateVideoState(video.name, {
+              updateVideoState(result.item.name, {
                 status: 'failed',
-                error: errorMsg,
+                error: result.error || 'Upload failed'
               });
             }
-          });
+          },
+          maxRetries: 3,
+          retryDelayMs: 2000
         }
-
-        // Small delay between batches
-        if (batches.indexOf(batch) < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
+      );
 
       // Start polling for processing videos after a short delay
       setTimeout(() => {
