@@ -101,7 +101,7 @@ export async function writeLaunchSnapshot({
     // 1. Update Video Records in Airtable (mark as "Used")
     // -------------------------------------------------------------------------
     const succeededVideos = result.media
-      .filter(m => m.type === 'video' && m.stage === 'done' && m.adId);
+      .filter(m => m.type === 'video' && m.state === 'done' && m.adId);
 
     if (succeededVideos.length > 0) {
       // Map video names back to their Airtable IDs
@@ -132,8 +132,8 @@ export async function writeLaunchSnapshot({
       return { success: true };
     }
 
-    const succeededMedia = result.media.filter(m => m.stage === 'done' && m.adId);
-    const failedMedia = result.media.filter(m => m.stage === 'failed');
+    const succeededMedia = result.media.filter(m => m.state === 'done' && m.adId);
+    const failedMedia = result.media.filter(m => m.state === 'failed');
 
     // Build media snapshot arrays
     const succeededVideosSnapshot: LaunchSnapshotMedia[] = succeededMedia
@@ -265,7 +265,7 @@ export async function writeLaunchSnapshot({
 
     // Get image IDs from succeeded media to store in "Images Used In This Campaign"
     const succeededImageIds = result.media
-      .filter(m => m.type === 'image' && m.stage === 'done' && m.adId)
+      .filter(m => m.type === 'image' && m.state === 'done' && m.adId)
       .map(m => imagesWithUrls.find(i => i.name === m.name)?.id)
       .filter((id): id is string => !!id);
 
