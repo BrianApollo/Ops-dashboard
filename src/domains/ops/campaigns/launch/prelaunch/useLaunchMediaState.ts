@@ -49,7 +49,7 @@ export function useLaunchMediaState({
   const baseVideos = useMemo((): BaseVideo[] => {
     if (!productId) return [];
     return videosController.list.allRecords
-      .filter((v) => v.product.id === productId && ['available', 'review'].includes(v.status) && v.format !== 'YouTube')
+      .filter((v) => v.product.id === productId && ['available', 'review'].includes(v.status) && v.format.toLowerCase() !== 'youtube')
       .map((v) => ({
         id: v.id,
         name: v.name,
@@ -64,7 +64,7 @@ export function useLaunchMediaState({
   const availableVideos = useMemo((): SelectableVideo[] => {
     if (!productId) return [];
     return videosController.list.allRecords
-      .filter((v) => v.product.id === productId && ['available', 'review'].includes(v.status) && v.format !== 'YouTube')
+      .filter((v) => v.product.id === productId && ['available', 'review'].includes(v.status) && v.format.toLowerCase() !== 'youtube')
       .map((v) => {
         const libraryEntry = prelaunchUploader.libraryMap.get(v.name);
         const uploadState = prelaunchUploader.uploadStates.get(v.name);

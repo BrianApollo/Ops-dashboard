@@ -251,7 +251,7 @@ export async function uploadVideoBatch(
   const batchRequest = videos.map(video => ({
     method: 'POST',
     relative_url: `${adAccountId}/advideos`,
-    body: `file_url=${encodeURIComponent(video.url)}&title=${encodeURIComponent(video.name)}`,
+    body: `file_url=${video.url}&title=${encodeURIComponent(video.name)}`,
   }));
 
   return request<FbBatchResponseItem[]>(`${BASE_URL}/`, {
