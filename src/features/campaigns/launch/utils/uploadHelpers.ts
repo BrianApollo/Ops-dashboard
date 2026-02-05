@@ -89,9 +89,13 @@ export async function uploadVideoBatchSafe(
                 accessToken,
                 adAccountId,
                 validItems.map(v => {
+                    if (CF_R2_PUBLIC_URL && v.url.startsWith(CF_R2_PUBLIC_URL)) {
+                        return { name: v.name, url: v.url };
+                    }
+
                     const lastSlash = v.url.lastIndexOf('/');
                     const encodedUrl = lastSlash !== -1
-                        ? v.url.substring(0, lastSlash + 1) + encodeURIComponent(v.url.substring(lastSlash + 1))
+                        ? v.url.substring(0, lastSlash + 1) + encodeURIComponent(encodeURIComponent(v.url.substring(lastSlash + 1)))
                         : v.url;
                     return { name: v.name, url: encodedUrl };
                 })
