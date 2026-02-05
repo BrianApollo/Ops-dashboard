@@ -339,7 +339,7 @@ export function CreativesColumn({
       <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
         {activeTab === 'videos' && (
           <VideosList
-            videos={videos.filter(video => video.format !== 'youtube')}
+            videos={videos}
             selectedIds={selectedVideoIds}
             onToggle={onToggleVideo}
           />

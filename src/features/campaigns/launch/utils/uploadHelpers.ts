@@ -278,14 +278,24 @@ export async function processVideoUploadQueue(
 
             const fallbackItems = finalFailures.map(r => {
                 const item = r.item;
-                const lastSlash = item.url.lastIndexOf('/');
-                const filename = lastSlash !== -1 ? item.url.substring(lastSlash + 1) : item.url;
-
                 // Construct new R2 URL
                 // Ensure no double slashes if CF_R2_PUBLIC_URL ends with /
                 const r2Url = CF_R2_PUBLIC_URL!;
                 const baseUrl = r2Url.endsWith('/') ? r2Url.slice(0, -1) : r2Url;
-                const newUrl = `${baseUrl}/${filename}`; // Raw URL, let uploadVideoBatchSafe handle encoding if needed
+
+                let newUrl: string;
+                try {
+                    // Try to preserve the full path (e.g. /Product/Videos/Name.mp4)
+                    // This handles switching from custom domain (trustapollo.media) to R2 public URL
+                    const urlObj = new URL(item.url);
+                    const cleanPath = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
+                    newUrl = `${baseUrl}/${cleanPath}`;
+                } catch {
+                    // Fallback to filename only if URL parsing fails
+                    const lastSlash = item.url.lastIndexOf('/');
+                    const filename = lastSlash !== -1 ? item.url.substring(lastSlash + 1) : item.url;
+                    newUrl = `${baseUrl}/${filename}`;
+                }
 
                 console.info(`[Video Upload] Switching ${item.name} to R2: ${newUrl}`);
 
