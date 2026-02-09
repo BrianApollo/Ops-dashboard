@@ -57,12 +57,12 @@ export function OpsLayout() {
 
   // Dynamic navigation items based on role
   const mainNavItems = [
-    ...(user?.role !== 'Video Editor' ? [{ to: '/ops/products', label: 'Products', icon: InventoryIcon }] : []),
+    ...(user?.role !== 'Video Editor' ? [{ to: '/ops', label: 'Products', icon: InventoryIcon }] : []),
   ];
 
   // Check if a nav item is active
   const isActive = (path: string) => {
-    if (path === '/ops/products') {
+    if (path === '/ops') {
       return location.pathname === '/ops' || location.pathname.startsWith('/ops/products');
     }
     return location.pathname.startsWith(path);

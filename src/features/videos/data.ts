@@ -207,11 +207,11 @@ function mapAirtableToVideoAsset(
   const status = normalizeStatus(rawStatus);
 
   // Format with fallback
-  const validFormats: VideoFormat[] = ['square', 'vertical', 'youtube'];
+  const validFormats: VideoFormat[] = ['square', 'vertical', 'YouTube'];
   const rawFormat = (typeof fields[FIELD_FORMAT] === 'string'
-    ? fields[FIELD_FORMAT].toLowerCase()
-    : 'square') as VideoFormat;
-  const format: VideoFormat = validFormats.includes(rawFormat) ? rawFormat : 'square';
+    ? fields[FIELD_FORMAT]
+    : 'vertical') as VideoFormat;
+  const format: VideoFormat = validFormats.includes(rawFormat) ? rawFormat : 'vertical';
 
   // hasText derived from Text Version field ("Text" → true, "No Text" → false)
   const textVersion = fields[FIELD_TEXT_VERSION];
@@ -355,7 +355,7 @@ function mapDomainToAirtableFields(
     fields[FIELD_STATUS] = denormalizeStatus(patch.status);
   }
   if (patch.format !== undefined) {
-    fields[FIELD_FORMAT] = patch.format === 'youtube' ? 'YouTube' : patch.format.charAt(0).toUpperCase() + patch.format.slice(1);
+    fields[FIELD_FORMAT] = patch.format;
   }
   if (patch.hasText !== undefined) {
     // Map boolean to Text Version select value
@@ -538,6 +538,32 @@ export async function updateVideoStatus(ids: string[], status: VideoStatus): Pro
 }
 
 /**
+ * Batch update videos to mark them as Used and link to a campaign.
+ * Handles chunking of 10 records per request.
+ */
+export async function updateVideoUsage(ids: string[], campaignId: string): Promise<void> {
+  // Airtable batch update limit is 10 records per request
+  const batchSize = 10;
+  const statusValue = denormalizeStatus('used');
+
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const records = batch.map((id) => ({
+      id,
+      fields: {
+        [FIELD_STATUS]: statusValue,
+        [FIELD_USED_IN_CAMPAIGN]: [campaignId],
+      },
+    }));
+
+    await airtableFetch(VIDEOS_TABLE, {
+      method: 'PATCH',
+      body: JSON.stringify({ records }),
+    });
+  }
+}
+
+/**
  * Batch update videos with arbitrary fields.
  * Handles chunking of 10 records per request.
  *
@@ -622,7 +648,7 @@ export async function createVideo(
   const fields: Record<string, unknown> = {
     [FIELD_VIDEO_NAME]: name,
     [FIELD_STATUS]: 'To Do',
-    [FIELD_FORMAT]: format === 'youtube' ? 'YouTube' : format.charAt(0).toUpperCase() + format.slice(1),
+    [FIELD_FORMAT]: format,
     [FIELD_TEXT_VERSION]: hasText ? 'Text' : 'No Text',
     [FIELD_EDITOR]: [editorId],
     [FIELD_PRODUCT]: [productId],
@@ -680,7 +706,7 @@ export async function createVideoBatch(videos: CreateVideoInput[]): Promise<Vide
     const fields: Record<string, unknown> = {
       [FIELD_VIDEO_NAME]: v.name,
       [FIELD_STATUS]: 'To Do',
-      [FIELD_FORMAT]: v.format === 'youtube' ? 'YouTube' : v.format.charAt(0).toUpperCase() + v.format.slice(1),
+      [FIELD_FORMAT]: v.format,
       [FIELD_TEXT_VERSION]: v.hasText ? 'Text' : 'No Text',
       [FIELD_EDITOR]: [v.editorId],
       [FIELD_PRODUCT]: [v.productId],

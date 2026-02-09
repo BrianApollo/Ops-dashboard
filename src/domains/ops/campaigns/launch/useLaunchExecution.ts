@@ -56,7 +56,7 @@ export { MediaCounts };
 
 export interface UseLaunchExecutionOptions {
   campaignId: string;
-  draft: CampaignDraft;
+  draft: CampaignDraft; // Use shared CampaignDraft type which allows nulls
   selectedProfile: ProfileForLaunch | undefined;
   availableVideos: SelectableVideo[];
   availableImages: SelectableImage[];
@@ -74,6 +74,7 @@ export interface UseLaunchExecutionReturn {
   mediaCounts: MediaCounts;
   launchProgress: FbLaunchState | null;
   launch: () => Promise<void>;
+  retryItem: (name: string) => void;
 }
 
 // =============================================================================
@@ -243,5 +244,6 @@ export function useLaunchExecution({
     mediaCounts: pipeline.mediaCounts,
     launchProgress: pipeline.launchProgress,
     launch,
+    retryItem: pipeline.retryItem,
   };
 }

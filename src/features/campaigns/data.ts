@@ -742,3 +742,31 @@ export async function saveCampaignDraft(params: SaveCampaignDraftParams): Promis
     body: JSON.stringify({ fields }),
   });
 }
+
+/**
+ * Add image IDs to a campaign's "Images Used In This Campaign" field.
+ * Reads existing IDs, merges with new ones, and updates.
+ */
+export async function addImageIdsToCampaign(
+  campaignId: string,
+  newImageIds: string[]
+): Promise<void> {
+  // 1. Fetch current campaign to get existing images
+  // We fetch the raw record to get the current field value accurately
+  const response = await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`);
+  const record: AirtableRecord = await response.json();
+  const existingIds = (record.fields[FIELD_IMAGES_USED] as string[]) || [];
+
+  // 2. Merge unique
+  const mergedIds = Array.from(new Set([...existingIds, ...newImageIds]));
+
+  // 3. Update
+  const fields = {
+    [FIELD_IMAGES_USED]: mergedIds,
+  };
+
+  await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields }),
+  });
+}

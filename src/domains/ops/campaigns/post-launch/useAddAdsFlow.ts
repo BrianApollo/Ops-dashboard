@@ -9,10 +9,10 @@
  *  - Batch ad creation with retry
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useVideosController } from '../../../../features/videos';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useVideosController, updateVideoUsage } from '../../../../features/videos';
 import { useImagesController } from '../../../../features/images';
-import { getFbCreative } from '../../../../features/campaigns';
+import { getFbCreative, addImageIdsToCampaign } from '../../../../features/campaigns';
 import { usePrelaunchUploader } from '../launch/prelaunch/usePrelaunchUploader';
 import { useLaunchMediaState } from '../launch/prelaunch/useLaunchMediaState';
 import { mapTemplateCreative } from './mapTemplateCreative';
@@ -28,6 +28,7 @@ import type { MediaItemForAd, FbBatchResponseItem } from '../../../../features/c
 export interface UseAddAdsFlowOptions {
   adSetId: string;
   templateCreativeId: string;
+  campaignId: string;
   productId: string | undefined;
   adAccountId: string;
   accessToken: string;
@@ -43,6 +44,7 @@ export interface CreationResult {
   success: number;
   failed: number;
   errors: string[];
+  succeededMediaNames: string[];
 }
 
 export interface UseAddAdsFlowReturn {
@@ -103,6 +105,7 @@ function delay(ms: number): Promise<void> {
 export function useAddAdsFlow({
   adSetId,
   templateCreativeId,
+  campaignId,
   productId,
   adAccountId,
   accessToken,
@@ -223,26 +226,107 @@ export function useAddAdsFlow({
   // ---------------------------------------------------------------------------
   const [isCreating, setIsCreating] = useState(false);
   const [creationProgress, setCreationProgress] = useState<CreationProgress | null>(null);
+  // Keep refs for async loop
+  const uploadStatesRef = useRef(uploader.uploadStates);
+  const libraryMapRef = useRef(uploader.libraryMap);
+  useEffect(() => {
+    uploadStatesRef.current = uploader.uploadStates;
+    libraryMapRef.current = uploader.libraryMap;
+  }, [uploader.uploadStates, uploader.libraryMap]);
+
   const [creationResult, setCreationResult] = useState<CreationResult | null>(null);
 
   const createAds = useCallback(async () => {
-    if (!templateCreative || !allMediaReady) return;
+    if (!templateCreative) return;
 
     setIsCreating(true);
     setCreationResult(null);
 
     try {
-      // 1. Map template → config
+      // 1. Check for missing videos & trigger uploads
+      // Find videos that are selected but NOT in library and NOT ready/processing
+      const videosToUpload = selectedVideos.filter(
+        v => !v.inLibrary && v.uploadStatus !== 'ready' && v.uploadStatus !== 'processing'
+      );
+
+      if (videosToUpload.length > 0) {
+        setCreationProgress({
+          current: 0,
+          total: totalSelectedCount,
+          message: `Uploading ${videosToUpload.length} video(s)...`
+        });
+
+        // Trigger upload
+        await uploader.uploadVideos(videosToUpload.map(v => v.name));
+      }
+
+      // 2. Poll for readiness
+      // Limit to 5 minutes
+      const startTime = Date.now();
+      const TIMEOUT_MS = 5 * 60 * 1000;
+
+      while (true) {
+        // Re-check status from refs to get fresh state during async loop
+        const currentStates = uploadStatesRef.current;
+        const library = libraryMapRef.current;
+
+        // Check if any selected video is NOT ready
+        const pendingVideos = selectedVideos.filter(v => {
+          const state = currentStates.get(v.name);
+          const libEntry = library.get(v.name);
+
+          const isInLibrary = !!libEntry;
+          const isUploadedReady = state?.status === 'ready';
+          const isFailed = state?.status === 'failed';
+
+          // If it failed, we stop waiting (it will fail creation step)
+          if (isFailed) return false;
+
+          // If it's ready (either in lib or uploaded), we're good
+          if (isInLibrary || isUploadedReady) return false;
+
+          // Otherwise, it's pending
+          return true;
+        });
+
+        if (pendingVideos.length === 0) {
+          break; // All ready or failed
+        }
+
+        if (Date.now() - startTime > TIMEOUT_MS) {
+          throw new Error('Timeout waiting for video uploads');
+        }
+
+        setCreationProgress({
+          current: 0,
+          total: totalSelectedCount,
+          message: `Processing videos... (${pendingVideos.length} remaining)`
+        });
+
+        await delay(3000);
+      }
+
+      // 3. Map template → config
       const { pageId, adCreative } = mapTemplateCreative(templateCreative, adStatus);
 
-      // 2. Build MediaItemForAd[]
+      // 4. Build MediaItemForAd[] (using fresh state)
+      // We need to pull the LATEST fbVideoId/thumbnail from the uploader state/library
       const mediaItems: MediaItemForAd[] = [
-        ...selectedVideos.map((v) => ({
-          type: 'video' as const,
-          name: v.name,
-          fbVideoId: v.fbVideoId ?? null,
-          thumbnailUrl: v.fbThumbnailUrl ?? v.thumbnailUrl ?? null,
-        })),
+        ...selectedVideos.map((v) => {
+          const state = uploadStatesRef.current.get(v.name);
+          const lib = libraryMapRef.current.get(v.name);
+
+          // Prefer library data, then upload state, then initial data
+          const fbVideoId = lib?.fbVideoId ?? state?.fbVideoId ?? v.fbVideoId;
+          const thumb = lib?.thumbnailUrl ?? state?.thumbnailUrl ?? v.fbThumbnailUrl ?? v.thumbnailUrl;
+
+          return {
+            type: 'video' as const,
+            name: v.name,
+            fbVideoId: fbVideoId ?? null,
+            thumbnailUrl: thumb ?? null,
+          };
+        }),
         ...selectedImages.map((i) => ({
           type: 'image' as const,
           name: i.name,
@@ -250,7 +334,7 @@ export function useAddAdsFlow({
         })),
       ];
 
-      // 3. Create with retry
+      // 5. Create with retry
       const result = await createAdsWithRetry({
         accessToken,
         adAccountId,
@@ -262,19 +346,45 @@ export function useAddAdsFlow({
       });
 
       setCreationResult(result);
+
+      // 6. Update usage in Airtable (fire-and-forget)
+      if (result.succeededMediaNames.length > 0) {
+        // Update Videos
+        const succeededVideos = selectedVideos
+          .filter(v => result.succeededMediaNames.includes(v.name))
+          .map(v => v.id);
+
+        if (succeededVideos.length > 0) {
+          updateVideoUsage(succeededVideos, campaignId).catch((err: unknown) => {
+            console.error('Failed to update video usage:', err);
+          });
+        }
+
+        // Update Images (Link to Campaign)
+        const succeededImages = selectedImages
+          .filter(i => result.succeededMediaNames.includes(i.name))
+          .map(i => i.id);
+
+        if (succeededImages.length > 0) {
+          addImageIdsToCampaign(campaignId, succeededImages).catch((err: unknown) => {
+            console.error('Failed to attach images to campaign:', err);
+          });
+        }
+      }
     } catch (err) {
       setCreationResult({
         success: 0,
         failed: totalSelectedCount,
         errors: [err instanceof Error ? err.message : 'Unknown error'],
+        succeededMediaNames: [],
       });
     } finally {
       setIsCreating(false);
       setCreationProgress(null);
     }
   }, [
+    campaignId,
     templateCreative,
-    allMediaReady,
     adStatus,
     selectedVideos,
     selectedImages,
@@ -282,6 +392,7 @@ export function useAddAdsFlow({
     adAccountId,
     adSetId,
     totalSelectedCount,
+    uploader,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -402,5 +513,6 @@ async function createAdsWithRetry({
     success: succeeded.length,
     failed: failedFinal.length,
     errors: failedFinal.map((f) => `${f.name}: ${f.error}`),
+    succeededMediaNames: succeeded,
   };
 }
