@@ -14,6 +14,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
@@ -62,6 +63,7 @@ interface LaunchProgressViewProps {
   } | null;
   adAccountId?: string | null;
   onBackToProduct?: () => void;
+  onRetryItem?: (name: string) => void;
 }
 
 // =============================================================================
@@ -284,6 +286,7 @@ export function LaunchProgressView({
   launchResult,
   adAccountId,
   onBackToProduct,
+  onRetryItem,
 }: LaunchProgressViewProps) {
   const phase: LaunchPhase = progress?.phase || (launchResult?.success ? 'complete' : launchResult?.error ? 'error' : 'idle');
   const stats = progress?.stats || null;
@@ -324,162 +327,156 @@ export function LaunchProgressView({
           overflow: 'hidden',
         }}
       >
-        {/* Post-launch states: stopped, failed, complete */}
-        {isFinished ? (
-          <Box sx={{ p: 2.5 }}>
-            <LaunchCompletionView
-              phase={isStopped ? 'stopped' : isFailed ? 'error' : 'complete'}
-              campaignName={campaignName}
-              mediaItems={mediaItems}
-              launchResult={launchResult}
-              progress={progress}
-              adsManagerUrl={adsManagerUrl}
-              onBackToProduct={onBackToProduct}
+        <>
+          {/* ============================================================= */}
+          {/* HEADER: Campaign name + progress bar + metadata               */}
+          {/* ============================================================= */}
+          <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <RocketLaunchIcon sx={{ color: 'primary.main' }} />
+              <Typography sx={{ ...textLg, flex: 1 }}>{campaignName}</Typography>
+            </Box>
+
+            <LinearProgress
+              variant="determinate"
+              value={overallProgress}
+              sx={{ height: 6, borderRadius: 3, mb: 1 }}
             />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography sx={helperText}>
+                {overallProgress}% complete
+                {progress?.elapsed ? ` \u00B7 Elapsed: ${formatElapsed(progress.elapsed)}` : ''}
+              </Typography>
+              <Typography sx={{ ...helperText, color: rateColor }}>
+                API Rate: {progress?.rate || 0}%
+              </Typography>
+            </Box>
+
+            {/* Campaign & Ad Set IDs */}
+            {(progress?.campaignId || progress?.adsetId) && (
+              <Box sx={{ display: 'flex', gap: 3, mt: 1.5, flexWrap: 'wrap' }}>
+                {progress?.campaignId && (
+                  <Typography sx={{ ...textXs, color: 'text.secondary' }}>
+                    Campaign: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.campaignId}</Box>
+                  </Typography>
+                )}
+                {progress?.adsetId && (
+                  <Typography sx={{ ...textXs, color: 'text.secondary' }}>
+                    Ad Set: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.adsetId}</Box>
+                  </Typography>
+                )}
+              </Box>
+            )}
           </Box>
-        ) : (
-          <>
-            {/* ============================================================= */}
-            {/* HEADER: Campaign name + progress bar + metadata               */}
-            {/* ============================================================= */}
-            <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <RocketLaunchIcon sx={{ color: 'primary.main' }} />
-                <Typography sx={{ ...textLg, flex: 1 }}>{campaignName}</Typography>
-              </Box>
 
-              <LinearProgress
-                variant="determinate"
-                value={overallProgress}
-                sx={{ height: 6, borderRadius: 3, mb: 1 }}
-              />
+          {/* ============================================================= */}
+          {/* STEPS SUMMARY ROW                                             */}
+          {/* ============================================================= */}
+          <Box sx={{ display: 'flex', gap: 1.5, p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <StepCard label="Upload" status={stepStatuses.upload.status} detail={stepStatuses.upload.label} />
+            <StepCard label="Processing" status={stepStatuses.processing.status} detail={stepStatuses.processing.label} />
+            <StepCard label="Campaign" status={stepStatuses.campaign.status} detail={stepStatuses.campaign.label} />
+            <StepCard label="Ads" status={stepStatuses.ads.status} detail={stepStatuses.ads.label} />
+          </Box>
 
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography sx={helperText}>
-                  {overallProgress}% complete
-                  {progress?.elapsed ? ` \u00B7 Elapsed: ${formatElapsed(progress.elapsed)}` : ''}
+          {/* ============================================================= */}
+          {/* TICK SUMMARY BAR                                              */}
+          {/* ============================================================= */}
+          {progress?.tickSummary && (
+            <Box sx={{ px: 2.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+              <Typography sx={{ ...textXs, color: 'text.secondary' }}>
+                Tick {progress.tick}/{progress.maxTicks} — {progress.tickSummary}
+              </Typography>
+            </Box>
+          )}
+
+          {/* ============================================================= */}
+          {/* MEDIA TABLES — side by side                                   */}
+          {/* ============================================================= */}
+          <Box sx={{ display: 'flex', gap: 0, borderBottom: '1px solid', borderColor: 'divider', minHeight: 200 }}>
+            {/* VIDEOS TABLE */}
+            {videoItems.length > 0 && (
+              <Box sx={{
+                flex: 1,
+                p: 2.5,
+                borderRight: imageItems.length > 0 ? '1px solid' : 'none',
+                borderColor: 'divider',
+                minWidth: 0,
+              }}>
+                <Typography sx={{ ...textSm, fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
+                  Videos ({videoItems.length}: {videoDone} done
+                  {videoInProgress > 0 ? ` \u00B7 ${videoInProgress} in progress` : ''}
+                  {videoFailed > 0 ? ` \u00B7 ${videoFailed} failed` : ''})
                 </Typography>
-                <Typography sx={{ ...helperText, color: rateColor }}>
-                  API Rate: {progress?.rate || 0}%
-                </Typography>
-              </Box>
 
-              {/* Campaign & Ad Set IDs */}
-              {(progress?.campaignId || progress?.adsetId) && (
-                <Box sx={{ display: 'flex', gap: 3, mt: 1.5, flexWrap: 'wrap' }}>
-                  {progress?.campaignId && (
-                    <Typography sx={{ ...textXs, color: 'text.secondary' }}>
-                      Campaign: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.campaignId}</Box>
-                    </Typography>
-                  )}
-                  {progress?.adsetId && (
-                    <Typography sx={{ ...textXs, color: 'text.secondary' }}>
-                      Ad Set: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.adsetId}</Box>
-                    </Typography>
-                  )}
+                {/* Column headers */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, px: 0.5 }}>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 180, minWidth: 100 }}>Name</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', flex: 1 }}>Progress</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>State</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Video ID</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Ad ID</Typography>
                 </Box>
-              )}
-            </Box>
 
-            {/* ============================================================= */}
-            {/* STEPS SUMMARY ROW                                             */}
-            {/* ============================================================= */}
-            <Box sx={{ display: 'flex', gap: 1.5, p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <StepCard label="Upload" status={stepStatuses.upload.status} detail={stepStatuses.upload.label} />
-              <StepCard label="Processing" status={stepStatuses.processing.status} detail={stepStatuses.processing.label} />
-              <StepCard label="Campaign" status={stepStatuses.campaign.status} detail={stepStatuses.campaign.label} />
-              <StepCard label="Ads" status={stepStatuses.ads.status} detail={stepStatuses.ads.label} />
-            </Box>
-
-            {/* ============================================================= */}
-            {/* TICK SUMMARY BAR                                              */}
-            {/* ============================================================= */}
-            {progress?.tickSummary && (
-              <Box sx={{ px: 2.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
-                <Typography sx={{ ...textXs, color: 'text.secondary' }}>
-                  Tick {progress.tick}/{progress.maxTicks} — {progress.tickSummary}
-                </Typography>
+                <Box sx={{ maxHeight: 400, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                  {videoItems.map(item => (
+                    <MediaItemRow
+                      key={item.id}
+                      item={item}
+                      showVideoId
+                      onRetry={() => onRetryItem?.(item.name)}
+                    />
+                  ))}
+                </Box>
               </Box>
             )}
 
-            {/* ============================================================= */}
-            {/* MEDIA TABLES — side by side                                   */}
-            {/* ============================================================= */}
-            <Box sx={{ display: 'flex', gap: 0, borderBottom: '1px solid', borderColor: 'divider', minHeight: 200 }}>
-              {/* VIDEOS TABLE */}
-              {videoItems.length > 0 && (
-                <Box sx={{
-                  flex: 1,
-                  p: 2.5,
-                  borderRight: imageItems.length > 0 ? '1px solid' : 'none',
-                  borderColor: 'divider',
-                  minWidth: 0,
-                }}>
-                  <Typography sx={{ ...textSm, fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
-                    Videos ({videoItems.length}: {videoDone} done
-                    {videoInProgress > 0 ? ` \u00B7 ${videoInProgress} in progress` : ''}
-                    {videoFailed > 0 ? ` \u00B7 ${videoFailed} failed` : ''})
-                  </Typography>
+            {/* IMAGES TABLE */}
+            {imageItems.length > 0 && (
+              <Box sx={{
+                flex: 1,
+                p: 2.5,
+                minWidth: 0,
+              }}>
+                <Typography sx={{ ...textSm, fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
+                  Images ({imageItems.length}: {imageDone} done
+                  {imageInProgress > 0 ? ` \u00B7 ${imageInProgress} in progress` : ''}
+                  {imageFailed > 0 ? ` \u00B7 ${imageFailed} failed` : ''})
+                </Typography>
 
-                  {/* Column headers */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, px: 0.5 }}>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 180, minWidth: 100 }}>Name</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', flex: 1 }}>Progress</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>State</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Video ID</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Ad ID</Typography>
-                  </Box>
-
-                  <Box sx={{ maxHeight: 400, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                    {videoItems.map(item => (
-                      <MediaItemRow key={item.id} item={item} showVideoId />
-                    ))}
-                  </Box>
+                {/* Column headers */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, px: 0.5 }}>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 180, minWidth: 100 }}>Name</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', flex: 1 }}>Progress</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>State</Typography>
+                  <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Ad ID</Typography>
                 </Box>
-              )}
 
-              {/* IMAGES TABLE */}
-              {imageItems.length > 0 && (
-                <Box sx={{
-                  flex: 1,
-                  p: 2.5,
-                  minWidth: 0,
-                }}>
-                  <Typography sx={{ ...textSm, fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
-                    Images ({imageItems.length}: {imageDone} done
-                    {imageInProgress > 0 ? ` \u00B7 ${imageInProgress} in progress` : ''}
-                    {imageFailed > 0 ? ` \u00B7 ${imageFailed} failed` : ''})
-                  </Typography>
-
-                  {/* Column headers */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, px: 0.5 }}>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 180, minWidth: 100 }}>Name</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', flex: 1 }}>Progress</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>State</Typography>
-                    <Typography sx={{ ...textXs, color: 'text.disabled', width: 100, textAlign: 'right' }}>Ad ID</Typography>
-                  </Box>
-
-                  <Box sx={{ maxHeight: 400, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                    {imageItems.map(item => (
-                      <MediaItemRow key={item.id} item={item} />
-                    ))}
-                  </Box>
+                <Box sx={{ maxHeight: 400, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                  {imageItems.map(item => (
+                    <MediaItemRow
+                      key={item.id}
+                      item={item}
+                      onRetry={() => onRetryItem?.(item.name)}
+                    />
+                  ))}
                 </Box>
-              )}
-            </Box>
-
-            {/* ============================================================= */}
-            {/* CANCEL BUTTON                                                 */}
-            {/* ============================================================= */}
-            {isLaunching && onCancel && (
-              <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
-                <Button variant="outlined" color="inherit" size="small" onClick={onCancel}>
-                  Stop
-                </Button>
               </Box>
             )}
-          </>
-        )}
+          </Box>
+
+          {/* ============================================================= */}
+          {/* CANCEL BUTTON                                                 */}
+          {/* ============================================================= */}
+          {isLaunching && onCancel && (
+            <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+              <Button variant="outlined" color="inherit" size="small" onClick={onCancel}>
+                Stop
+              </Button>
+            </Box>
+          )}
+        </>
       </Paper>
     </Box>
   );
@@ -536,7 +533,7 @@ function StepCard({ label, status, detail }: { label: string; status: StepStatus
   );
 }
 
-function MediaItemRow({ item, showVideoId }: { item: MediaItemForDisplay; showVideoId?: boolean }) {
+function MediaItemRow({ item, showVideoId, onRetry }: { item: MediaItemForDisplay; showVideoId?: boolean; onRetry?: () => void }) {
   const isFailed = item.itemState === 'failed';
   const isDone = item.itemState === 'done';
   const isActive = !isDone && !isFailed && item.itemState !== 'queued';
@@ -557,6 +554,13 @@ function MediaItemRow({ item, showVideoId }: { item: MediaItemForDisplay; showVi
         '&:hover': { bgcolor: isFailed ? 'error.100' : 'action.hover' },
       }}
     >
+      {/* Retry Button (only if failed and callback provided) */}
+      {isFailed && onRetry && (
+        <IconButton size="small" onClick={onRetry} sx={{ p: 0.25, mr: 0.5, color: 'error.main' }} title="Retry">
+          <AutorenewIcon fontSize="small" />
+        </IconButton>
+      )}
+
       {/* Name */}
       <Typography
         sx={{

@@ -51,8 +51,8 @@ export function useLaunchSelectionState(
   // ---------------------------------------------------------------------------
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
-  const [reuseCreatives, setReuseCreatives] = useState(false);
-  const [launchStatusActive, setLaunchStatusActive] = useState(false);
+  const [reuseCreatives, setReuseCreatives] = useState(true);
+  const [launchStatusActive, setLaunchStatusActive] = useState(true);
 
   // ---------------------------------------------------------------------------
   // HANDLERS
