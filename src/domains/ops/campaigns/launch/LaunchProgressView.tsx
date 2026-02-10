@@ -15,13 +15,13 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
-import LinearProgress from '@mui/material/LinearProgress';
+
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
-import { textLg, textMd, textSm, textXs, helperText } from '../../../../theme/typography';
+import { textLg, textMd, textSm, textXs } from '../../../../theme/typography';
 import type { FbLaunchState, LaunchPhase, FbLaunchMediaState, MediaItemState } from '../../../../features/campaigns/launch';
 import { LaunchCompletionView } from './postlaunch/LaunchCompletionView';
 
@@ -72,10 +72,16 @@ interface LaunchProgressViewProps {
 
 type StepStatus = 'done' | 'active' | 'pending';
 
-function getStepStatuses(phase: LaunchPhase, stats: FbLaunchState['stats'] | null): {
+function getStepStatuses(
+  phase: LaunchPhase,
+  stats: FbLaunchState['stats'] | null,
+  campaignId?: string,
+  adSetId?: string,
+): {
   upload: { status: StepStatus; label: string };
   processing: { status: StepStatus; label: string };
   campaign: { status: StepStatus; label: string };
+  adSet: { status: StepStatus; label: string };
   ads: { status: StepStatus; label: string };
 } {
   const phaseOrder: LaunchPhase[] = ['idle', 'checking', 'uploading', 'polling', 'creating_campaign', 'creating_ads', 'complete'];
@@ -87,6 +93,15 @@ function getStepStatuses(phase: LaunchPhase, stats: FbLaunchState['stats'] | nul
   const processed = (stats?.ready || 0) + (stats?.creatingAd || 0) + (stats?.done || 0);
   const adsDone = stats?.done || 0;
 
+  // Determine Ad Set Status
+  // If we have an adSetId, it's done. 
+  // If we have campaignId but no adSetId, and phase is creating_ads (or later), it's active.
+  const adSetStatus: StepStatus = adSetId
+    ? 'done'
+    : (campaignId && (idx >= 5)) // creating_ads is index 5
+      ? 'active'
+      : 'pending';
+
   return {
     upload: {
       status: idx > 3 || isFinal ? 'done' : (idx === 2 || idx === 3) ? 'active' : idx > 1 ? 'done' : 'pending',
@@ -97,8 +112,12 @@ function getStepStatuses(phase: LaunchPhase, stats: FbLaunchState['stats'] | nul
       label: total > 0 ? `${processed}/${total}` : '',
     },
     campaign: {
-      status: idx > 4 || isFinal ? 'done' : idx === 4 ? 'active' : 'pending',
-      label: phase === 'creating_campaign' ? 'Creating...' : (idx > 4 || isFinal) ? 'Created' : '',
+      status: campaignId ? 'done' : (idx === 4 ? 'active' : (idx > 4 || isFinal ? 'done' : 'pending')),
+      label: campaignId || (phase === 'creating_campaign' ? 'Creating...' : (idx > 4 || isFinal) ? 'Created' : ''),
+    },
+    adSet: {
+      status: adSetStatus,
+      label: adSetId || (adSetStatus === 'active' ? 'Creating...' : ''),
     },
     ads: {
       status: phase === 'complete' ? 'done' : idx === 5 ? 'active' : 'pending',
@@ -225,37 +244,7 @@ function mapAdStatus(state: MediaItemState, adId?: string | null): MediaItemForD
   }
 }
 
-function calculateOverallProgress(phase: LaunchPhase, stats: FbLaunchState['stats'] | null): number {
-  if (!stats || stats.total === 0) return 0;
-  const total = stats.total;
 
-  switch (phase) {
-    case 'idle': return 0;
-    case 'checking': return 2;
-    case 'uploading': {
-      const uploaded = stats.processing + stats.ready + stats.creatingAd + stats.done;
-      return 5 + Math.round((uploaded / total) * 20);
-    }
-    case 'polling': {
-      const ready = stats.ready + stats.creatingAd + stats.done;
-      return 25 + Math.round((ready / total) * 20);
-    }
-    case 'creating_campaign': return 50;
-    case 'creating_ads': {
-      return 55 + Math.round((stats.done / total) * 40);
-    }
-    case 'complete': return 100;
-    case 'error':
-    case 'stopped': return 0;
-    default: return 0;
-  }
-}
-
-function formatElapsed(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-}
 
 /** Sort: done first, then in-progress, then waiting, then failed */
 const STATE_SORT_ORDER: Record<MediaItemState, number> = {
@@ -291,8 +280,7 @@ export function LaunchProgressView({
   const phase: LaunchPhase = progress?.phase || (launchResult?.success ? 'complete' : launchResult?.error ? 'error' : 'idle');
   const stats = progress?.stats || null;
   const mediaItems = buildMediaItems(selectedVideos, selectedImages, progress);
-  const overallProgress = calculateOverallProgress(phase, stats);
-  const stepStatuses = getStepStatuses(phase, stats);
+  const stepStatuses = getStepStatuses(phase, stats, progress?.campaignId || undefined, progress?.adsetId || undefined);
 
   const videoItems = sortMediaItems(mediaItems.filter(m => m.type === 'video'));
   const imageItems = sortMediaItems(mediaItems.filter(m => m.type === 'image'));
@@ -306,7 +294,7 @@ export function LaunchProgressView({
     ? `https://business.facebook.com/adsmanager/manage/campaigns?act=${adAccountId.replace('act_', '')}`
     : null;
 
-  const rateColor = (progress?.rate || 0) > 80 ? 'error.main' : (progress?.rate || 0) > 50 ? 'warning.main' : 'text.secondary';
+
 
   // Summary counts for table headers
   const videoDone = videoItems.filter(m => m.itemState === 'done').length;
@@ -337,37 +325,8 @@ export function LaunchProgressView({
               <Typography sx={{ ...textLg, flex: 1 }}>{campaignName}</Typography>
             </Box>
 
-            <LinearProgress
-              variant="determinate"
-              value={overallProgress}
-              sx={{ height: 6, borderRadius: 3, mb: 1 }}
-            />
+            {/* Campaign & Ad Set IDs removed from here */}
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography sx={helperText}>
-                {overallProgress}% complete
-                {progress?.elapsed ? ` \u00B7 Elapsed: ${formatElapsed(progress.elapsed)}` : ''}
-              </Typography>
-              <Typography sx={{ ...helperText, color: rateColor }}>
-                API Rate: {progress?.rate || 0}%
-              </Typography>
-            </Box>
-
-            {/* Campaign & Ad Set IDs */}
-            {(progress?.campaignId || progress?.adsetId) && (
-              <Box sx={{ display: 'flex', gap: 3, mt: 1.5, flexWrap: 'wrap' }}>
-                {progress?.campaignId && (
-                  <Typography sx={{ ...textXs, color: 'text.secondary' }}>
-                    Campaign: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.campaignId}</Box>
-                  </Typography>
-                )}
-                {progress?.adsetId && (
-                  <Typography sx={{ ...textXs, color: 'text.secondary' }}>
-                    Ad Set: <Box component="span" sx={{ fontFamily: 'monospace' }}>{progress.adsetId}</Box>
-                  </Typography>
-                )}
-              </Box>
-            )}
           </Box>
 
           {/* ============================================================= */}
@@ -377,6 +336,7 @@ export function LaunchProgressView({
             <StepCard label="Upload" status={stepStatuses.upload.status} detail={stepStatuses.upload.label} />
             <StepCard label="Processing" status={stepStatuses.processing.status} detail={stepStatuses.processing.label} />
             <StepCard label="Campaign" status={stepStatuses.campaign.status} detail={stepStatuses.campaign.label} />
+            <StepCard label="Ad Set" status={stepStatuses.adSet.status} detail={stepStatuses.adSet.label} />
             <StepCard label="Ads" status={stepStatuses.ads.status} detail={stepStatuses.ads.label} />
           </Box>
 
