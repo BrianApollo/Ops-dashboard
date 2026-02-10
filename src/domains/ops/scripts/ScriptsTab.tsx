@@ -343,6 +343,8 @@ export function ScriptsTab({
                   const isExpanded = expandedScript === script.id;
                   const hasVideos = script.videos.length > 0;
 
+                  console.log(script.name, script.videos.length)
+
                   return (
                     <>
                       {/* Main Script Row */}
