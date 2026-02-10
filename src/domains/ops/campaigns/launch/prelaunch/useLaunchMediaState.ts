@@ -53,7 +53,7 @@ export function useLaunchMediaState({
       .map((v) => ({
         id: v.id,
         name: v.name,
-        creativeLink: v.creativeLink,
+        creativeLink: v.creativeLink || '',
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [videosController.list.allRecords, productId]);
@@ -91,7 +91,7 @@ export function useLaunchMediaState({
   const availableImages = useMemo((): SelectableImage[] => {
     if (!productId) return [];
     return imagesController.images
-      .filter((i) => i.product.id === productId && (i.status === 'available' || i.usedInCampaigns.length === 0))
+      .filter((i) => i.product.id === productId && i.status !== 'new' && (i.status === 'available' || i.usedInCampaigns.length === 0))
       .map((i) => ({
         id: i.id,
         name: i.name,

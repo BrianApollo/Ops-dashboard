@@ -89,9 +89,13 @@ export async function uploadVideoBatchSafe(
                 accessToken,
                 adAccountId,
                 validItems.map(v => {
+                    if (CF_R2_PUBLIC_URL && v.url.startsWith(CF_R2_PUBLIC_URL)) {
+                        return { name: v.name, url: v.url };
+                    }
+
                     const lastSlash = v.url.lastIndexOf('/');
                     const encodedUrl = lastSlash !== -1
-                        ? v.url.substring(0, lastSlash + 1) + encodeURIComponent(v.url.substring(lastSlash + 1))
+                        ? v.url.substring(0, lastSlash + 1) + encodeURIComponent(encodeURIComponent(v.url.substring(lastSlash + 1)))
                         : v.url;
                     return { name: v.name, url: encodedUrl };
                 })
@@ -279,22 +283,28 @@ export async function processVideoUploadQueue(
             const fallbackItems = finalFailures.map(r => {
                 const item = r.item;
                 // Construct new R2 URL
-                // Ensure no double slashes if CF_R2_PUBLIC_URL ends with /
                 const r2Url = CF_R2_PUBLIC_URL!;
                 const baseUrl = r2Url.endsWith('/') ? r2Url.slice(0, -1) : r2Url;
 
                 let newUrl: string;
                 try {
-                    // Try to preserve the full path (e.g. /Product/Videos/Name.mp4)
-                    // This handles switching from custom domain (trustapollo.media) to R2 public URL
+                    // Try to parse as full URL first
                     const urlObj = new URL(item.url);
                     const cleanPath = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
                     newUrl = `${baseUrl}/${cleanPath}`;
                 } catch {
-                    // Fallback to filename only if URL parsing fails
-                    const lastSlash = item.url.lastIndexOf('/');
-                    const filename = lastSlash !== -1 ? item.url.substring(lastSlash + 1) : item.url;
-                    newUrl = `${baseUrl}/${filename}`;
+                    // If URL parsing fails, treat the entire string as a path
+                    // Extract everything after the domain
+                    const pathMatch = item.url.match(/^[^/]+\/(.+)$/);
+                    if (pathMatch) {
+                        // We found a domain followed by a path (e.g., "test.com/folder1/folder2/video.mp4")
+                        newUrl = `${baseUrl}/${pathMatch[1]}`;
+                    } else {
+                        // Fallback to filename only if no path structure is found
+                        const lastSlash = item.url.lastIndexOf('/');
+                        const filename = lastSlash !== -1 ? item.url.substring(lastSlash + 1) : item.url;
+                        newUrl = `${baseUrl}/${filename}`;
+                    }
                 }
 
                 console.info(`[Video Upload] Switching ${item.name} to R2: ${newUrl}`);
