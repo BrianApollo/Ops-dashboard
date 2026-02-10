@@ -648,7 +648,7 @@ export async function createVideo(
   const fields: Record<string, unknown> = {
     [FIELD_VIDEO_NAME]: name,
     [FIELD_STATUS]: 'To Do',
-    [FIELD_FORMAT]: format,
+    [FIELD_FORMAT]: format === 'youtube' ? 'YouTube' : format.charAt(0).toUpperCase() + format.slice(1),
     [FIELD_TEXT_VERSION]: hasText ? 'Text' : 'No Text',
     [FIELD_EDITOR]: [editorId],
     [FIELD_PRODUCT]: [productId],
@@ -706,7 +706,7 @@ export async function createVideoBatch(videos: CreateVideoInput[]): Promise<Vide
     const fields: Record<string, unknown> = {
       [FIELD_VIDEO_NAME]: v.name,
       [FIELD_STATUS]: 'To Do',
-      [FIELD_FORMAT]: v.format,
+      [FIELD_FORMAT]: v.format === 'youtube' ? 'YouTube' : v.format.charAt(0).toUpperCase() + v.format.slice(1),
       [FIELD_TEXT_VERSION]: v.hasText ? 'Text' : 'No Text',
       [FIELD_EDITOR]: [v.editorId],
       [FIELD_PRODUCT]: [v.productId],
