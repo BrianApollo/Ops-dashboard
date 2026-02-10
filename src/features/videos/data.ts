@@ -207,11 +207,11 @@ function mapAirtableToVideoAsset(
   const status = normalizeStatus(rawStatus);
 
   // Format with fallback
-  const validFormats: VideoFormat[] = ['square', 'vertical', 'YouTube'];
+  const validFormats: VideoFormat[] = ['square', 'vertical', 'youtube'];
   const rawFormat = (typeof fields[FIELD_FORMAT] === 'string'
-    ? fields[FIELD_FORMAT]
-    : 'vertical') as VideoFormat;
-  const format: VideoFormat = validFormats.includes(rawFormat) ? rawFormat : 'vertical';
+    ? fields[FIELD_FORMAT].toLowerCase()
+    : 'square') as VideoFormat;
+  const format: VideoFormat = validFormats.includes(rawFormat) ? rawFormat : 'square';
 
   // hasText derived from Text Version field ("Text" → true, "No Text" → false)
   const textVersion = fields[FIELD_TEXT_VERSION];
@@ -355,7 +355,7 @@ function mapDomainToAirtableFields(
     fields[FIELD_STATUS] = denormalizeStatus(patch.status);
   }
   if (patch.format !== undefined) {
-    fields[FIELD_FORMAT] = patch.format;
+    fields[FIELD_FORMAT] = patch.format === 'youtube' ? 'YouTube' : patch.format.charAt(0).toUpperCase() + patch.format.slice(1);
   }
   if (patch.hasText !== undefined) {
     // Map boolean to Text Version select value

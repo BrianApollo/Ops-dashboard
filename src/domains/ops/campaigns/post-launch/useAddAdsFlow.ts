@@ -74,6 +74,8 @@ export interface UseAddAdsFlowReturn {
   // Status toggle
   adStatus: 'ACTIVE' | 'PAUSED';
   setAdStatus: (s: 'ACTIVE' | 'PAUSED') => void;
+  reuseCreatives: boolean;
+  setReuseCreatives: (v: boolean) => void;
 
   // Creation
   createAds: () => Promise<void>;
@@ -220,6 +222,7 @@ export function useAddAdsFlow({
   // STATUS
   // ---------------------------------------------------------------------------
   const [adStatus, setAdStatus] = useState<'ACTIVE' | 'PAUSED'>('PAUSED');
+  const [reuseCreatives, setReuseCreatives] = useState(true);
 
   // ---------------------------------------------------------------------------
   // CREATION
@@ -243,11 +246,50 @@ export function useAddAdsFlow({
     setCreationResult(null);
 
     try {
+      let foundLibraryMap = new Map<string, { fbVideoId: string; thumbnailUrl: string }>();
+
+      // 0. Check library if reuseCreatives is enabled
+      if (reuseCreatives && selectedVideos.length > 0) {
+        setCreationProgress({
+          current: 0,
+          total: totalSelectedCount,
+          message: 'Checking library for existing videos...'
+        });
+        foundLibraryMap = await uploader.checkLibrary();
+      }
+
       // 1. Check for missing videos & trigger uploads
       // Find videos that are selected but NOT in library and NOT ready/processing
-      const videosToUpload = selectedVideos.filter(
-        v => !v.inLibrary && v.uploadStatus !== 'ready' && v.uploadStatus !== 'processing'
-      );
+      const videosToUpload = selectedVideos.filter(v => {
+        // Check fresh library data AND stale ref data
+        const inFreshLibrary = foundLibraryMap.has(v.name);
+        const inStaleLibrary = libraryMapRef.current.has(v.name);
+        const isInLibrary = inFreshLibrary || inStaleLibrary;
+
+        // Status checks
+        const state = uploadStatesRef.current.get(v.name);
+        // We consider 'ready' as something that exists.
+        // If it's ready, we *probably* don't need to re-upload regardless of Reuse flag.
+        // BUT if user explicitly UNCHECKS Reuse, they might want to overwrite.
+        // However, Facebook upload API is idempotent for same file content (usually).
+        // Let's stick to the safe path:
+        // If it's processing/uploading/queued -> SKIP (it's active).
+        const isProcessingOrQueued =
+          state?.status === 'processing' ||
+          state?.status === 'uploading' ||
+          state?.status === 'queued';
+
+        if (isProcessingOrQueued) return false;
+
+        // If reusing and found in library, skip
+        if (reuseCreatives && isInLibrary) return false;
+
+        // If reusing and ready (uploaded success), skip
+        if (reuseCreatives && state?.status === 'ready') return false;
+
+        // Otherwise upload
+        return true;
+      });
 
       if (videosToUpload.length > 0) {
         setCreationProgress({
@@ -414,6 +456,8 @@ export function useAddAdsFlow({
     totalSelectedCount,
     adStatus,
     setAdStatus,
+    reuseCreatives,
+    setReuseCreatives,
     createAds,
     isCreating,
     creationProgress,

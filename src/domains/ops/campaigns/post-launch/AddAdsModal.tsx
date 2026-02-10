@@ -267,8 +267,25 @@ export function AddAdsModal({
         )}
 
         {/* Status toggle */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
           <FormControlLabel
+            control={
+              <Checkbox
+                checked={flow.reuseCreatives}
+                onChange={(e) => flow.setReuseCreatives(e.target.checked)}
+                size="small"
+                sx={{ py: 0 }}
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.secondary">
+                Use existing creatives if already in ad account
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
+          <FormControlLabel
+            sx={{ marginLeft: 0.5 }}
             control={
               <Switch
                 checked={flow.adStatus === 'ACTIVE'}
