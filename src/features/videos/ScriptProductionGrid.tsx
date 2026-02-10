@@ -60,13 +60,13 @@ export const SLOT_DEFINITIONS: {
   columnLabel: string;
   rowLabel: string;
 }[] = [
-  { key: 'square-text', format: 'square', hasText: true, label: 'Square + Text', columnLabel: 'Square', rowLabel: 'Text' },
-  { key: 'vertical-text', format: 'vertical', hasText: true, label: 'Vertical + Text', columnLabel: 'Vertical', rowLabel: 'Text' },
-  { key: 'youtube-text', format: 'youtube', hasText: true, label: 'YouTube + Text', columnLabel: 'YouTube', rowLabel: 'Text' },
-  { key: 'square-notext', format: 'square', hasText: false, label: 'Square + No Text', columnLabel: 'Square', rowLabel: 'No Text' },
-  { key: 'vertical-notext', format: 'vertical', hasText: false, label: 'Vertical + No Text', columnLabel: 'Vertical', rowLabel: 'No Text' },
-  { key: 'youtube-notext', format: 'youtube', hasText: false, label: 'YouTube + No Text', columnLabel: 'YouTube', rowLabel: 'No Text' },
-];
+    { key: 'square-text', format: 'square', hasText: true, label: 'Square + Text', columnLabel: 'Square', rowLabel: 'Text' },
+    { key: 'vertical-text', format: 'vertical', hasText: true, label: 'Vertical + Text', columnLabel: 'Vertical', rowLabel: 'Text' },
+    { key: 'youtube-text', format: 'youtube', hasText: true, label: 'YouTube + Text', columnLabel: 'YouTube', rowLabel: 'Text' },
+    { key: 'square-notext', format: 'square', hasText: false, label: 'Square + No Text', columnLabel: 'Square', rowLabel: 'No Text' },
+    { key: 'vertical-notext', format: 'vertical', hasText: false, label: 'Vertical + No Text', columnLabel: 'Vertical', rowLabel: 'No Text' },
+    { key: 'youtube-notext', format: 'youtube', hasText: false, label: 'YouTube + No Text', columnLabel: 'YouTube', rowLabel: 'No Text' },
+  ];
 
 export interface SlotState {
   slot: typeof SLOT_DEFINITIONS[number];
@@ -230,6 +230,8 @@ export function ScriptProductionGrid({
 }: ScriptProductionGridProps) {
   // Build ALL cards from ALL videos
   const allCards = useMemo(() => buildGridCards(videos), [videos]);
+  console.log(videos.filter(video => video.name === 'GhostWing - Script 1058 - Nick - Square - Waqar'))
+
 
   // Card pagination state
   const [cardPageIndex, setCardPageIndex] = useState(0);

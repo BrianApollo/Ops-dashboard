@@ -387,53 +387,65 @@ let productsCache: { id: string; name: string; driveFolderId?: string }[] | null
 let scriptsCache: { id: string; name: string }[] | null = null;
 
 async function fetchEditors(): Promise<Map<string, { id: string; name: string }>> {
-  // Query Users table, filter by Role = 'Video Editor'
   const filterFormula = encodeURIComponent(`({${FIELD_USER_ROLE}} = 'Video Editor')`);
-  const response = await airtableFetch(`${USERS_TABLE}?filterByFormula=${filterFormula}`);
-  const data: AirtableResponse = await response.json();
-
   const map = new Map<string, { id: string; name: string }>();
   const list: { id: string; name: string }[] = [];
+  let offset: string | undefined;
 
-  for (const record of data.records) {
-    const name = typeof record.fields[FIELD_USER_NAME] === 'string'
-      ? record.fields[FIELD_USER_NAME]
-      : 'Unknown';
-    const editor = { id: record.id, name };
-    map.set(record.id, editor);
-    list.push(editor);
-  }
+  do {
+    const url = offset
+      ? `${USERS_TABLE}?filterByFormula=${filterFormula}&offset=${offset}`
+      : `${USERS_TABLE}?filterByFormula=${filterFormula}`;
+    const response = await airtableFetch(url);
+    const data: AirtableResponse = await response.json();
+
+    for (const record of data.records) {
+      const name = typeof record.fields[FIELD_USER_NAME] === 'string'
+        ? record.fields[FIELD_USER_NAME]
+        : 'Unknown';
+      const editor = { id: record.id, name };
+      map.set(record.id, editor);
+      list.push(editor);
+    }
+
+    offset = data.offset;
+  } while (offset);
 
   editorsCache = list;
   return map;
 }
 
 async function fetchProducts(): Promise<Map<string, { id: string; name: string; driveFolderId?: string }>> {
-  const response = await airtableFetch(PRODUCTS_TABLE);
-  const data: AirtableResponse = await response.json();
-
   const map = new Map<string, { id: string; name: string; driveFolderId?: string }>();
   const list: { id: string; name: string; driveFolderId?: string }[] = [];
+  let offset: string | undefined;
 
-  for (const record of data.records) {
-    const name = typeof record.fields[FIELD_PRODUCT_NAME] === 'string'
-      ? record.fields[FIELD_PRODUCT_NAME]
-      : 'Unknown';
+  do {
+    const url = offset
+      ? `${PRODUCTS_TABLE}?offset=${offset}`
+      : PRODUCTS_TABLE;
+    const response = await airtableFetch(url);
+    const data: AirtableResponse = await response.json();
 
-    // Extract Drive folder ID from Drive Link field
-    // The field may contain a full URL or just the folder ID
-    const driveLink = record.fields[FIELD_PRODUCT_DRIVE_LINK];
-    let driveFolderId: string | undefined;
-    if (typeof driveLink === 'string' && driveLink.trim()) {
-      // Extract folder ID from URL if it's a full URL, otherwise use as-is
-      const folderIdMatch = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
-      driveFolderId = folderIdMatch ? folderIdMatch[1] : driveLink.trim();
+    for (const record of data.records) {
+      const name = typeof record.fields[FIELD_PRODUCT_NAME] === 'string'
+        ? record.fields[FIELD_PRODUCT_NAME]
+        : 'Unknown';
+
+      const driveLink = record.fields[FIELD_PRODUCT_DRIVE_LINK];
+      let driveFolderId: string | undefined;
+      if (typeof driveLink === 'string' && driveLink.trim()) {
+        const folderIdMatch = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+        driveFolderId = folderIdMatch ? folderIdMatch[1] : driveLink.trim();
+      }
+
+      const product = { id: record.id, name, driveFolderId };
+      map.set(record.id, product);
+      list.push(product);
     }
 
-    const product = { id: record.id, name, driveFolderId };
-    map.set(record.id, product);
-    list.push(product);
-  }
+    offset = data.offset;
+  } while (offset);
 
   productsCache = list;
   return map;
@@ -443,20 +455,28 @@ async function fetchProducts(): Promise<Map<string, { id: string; name: string; 
  * Fetch Video Scripts for linked record resolution.
  */
 async function fetchScripts(): Promise<Map<string, { id: string; name: string }>> {
-  const response = await airtableFetch(VIDEO_SCRIPTS_TABLE);
-  const data: AirtableResponse = await response.json();
-
   const map = new Map<string, { id: string; name: string }>();
   const list: { id: string; name: string }[] = [];
+  let offset: string | undefined;
 
-  for (const record of data.records) {
-    const name = typeof record.fields[FIELD_SCRIPT_NAME] === 'string'
-      ? record.fields[FIELD_SCRIPT_NAME]
-      : 'Unknown Script';
-    const script = { id: record.id, name };
-    map.set(record.id, script);
-    list.push(script);
-  }
+  do {
+    const url = offset
+      ? `${VIDEO_SCRIPTS_TABLE}?offset=${offset}`
+      : VIDEO_SCRIPTS_TABLE;
+    const response = await airtableFetch(url);
+    const data: AirtableResponse = await response.json();
+
+    for (const record of data.records) {
+      const name = typeof record.fields[FIELD_SCRIPT_NAME] === 'string'
+        ? record.fields[FIELD_SCRIPT_NAME]
+        : 'Unknown Script';
+      const script = { id: record.id, name };
+      map.set(record.id, script);
+      list.push(script);
+    }
+
+    offset = data.offset;
+  } while (offset);
 
   scriptsCache = list;
   return map;
