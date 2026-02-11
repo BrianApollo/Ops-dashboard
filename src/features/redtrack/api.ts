@@ -544,7 +544,7 @@ export async function fetchRedtrackReport(
   }
 
   const json = await response.json();
-
+  console.log(json);
   // Handle response format - could be array or { data: [...] }
   const rawData = Array.isArray(json) ? json : (json.data || []);
 
@@ -554,8 +554,8 @@ export async function fetchRedtrackReport(
     campaign_id: row.campaign_id as string | undefined,
     campaign_name: row.campaign_name as string | undefined,
     cost: Number(row.cost) || 0,
-    conversions: Number(row.conversions) || 0,
-    revenue: Number(row.revenue) || 0,
+    conversions: Number(row.total_conversions) || 0,
+    revenue: Number(row.total_revenue) || 0,
     roas: Number(row.roas) || 0,
     roi: Number(row.roi) || 0,
     cpa: Number(row.cpa) || 0,
