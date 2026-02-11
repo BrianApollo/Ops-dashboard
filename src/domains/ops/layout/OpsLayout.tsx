@@ -210,9 +210,9 @@ export function OpsLayout() {
           sx={{
             flex: 1,
             p: 3,
-            maxWidth: 1600,
             width: '100%',
-            mx: 'auto',
+            maxWidth: location.pathname === '/ops/infrastructure' ? '100%' : 1600,
+            mx: location.pathname === '/ops/infrastructure' ? 0 : 'auto',
           }}
         >
           <Outlet />
