@@ -802,7 +802,7 @@ function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
                 <td>{row.conversions}</td>
                 <td>${row.revenue.toFixed(2)}</td>
                 <td>{row.roas.toFixed(2)}</td>
-                <td>{row.roi.toFixed(1)}%</td>
+                <td>{(row.roi * 100).toFixed(2)}%</td>
                 {showExpanded && (
                   <>
                     <td>${row.cpa.toFixed(2)}</td>
@@ -810,8 +810,8 @@ function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
                     <td>${row.epc.toFixed(4)}</td>
                     <td>{row.clicks}</td>
                     <td>{row.lp_clicks}</td>
-                    <td>{row.lp_ctr.toFixed(2)}%</td>
-                    <td>{row.cr.toFixed(2)}%</td>
+                    <td>{(row.lp_ctr * 100).toFixed(2)}%</td>
+                    <td>{(row.cr * 100).toFixed(2)}%</td>
                   </>
                 )}
               </tr>
