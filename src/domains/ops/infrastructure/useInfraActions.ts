@@ -428,7 +428,6 @@ export function useInfraActions(
             if (needsLink) {
               updateFields[FB.linkedProfile] = [...currentLinked, profileId];
               addLog(`  + Linking profile to BM`, false, true);
-              results.bms++;
             } else {
               addLog(`  - Already linked`);
             }
@@ -443,8 +442,8 @@ export function useInfraActions(
             });
             bmRecordId = newBm.id;
             addLog(`  Created new: ${fbBm.name}`, false, true);
-            results.bms++;
           }
+          results.bms++;
 
           bmRecordIdMap[fbBm.id] = bmRecordId;
 
@@ -487,7 +486,6 @@ export function useInfraActions(
 
                 if (needsLink) {
                   updateFields[FA.linkedBm] = [...currentLinked, bmRecordId];
-                  results.adAccounts++;
                 }
 
                 await updateInfraRecord('adaccounts', existing.id, updateFields);
@@ -502,8 +500,8 @@ export function useInfraActions(
                   [FA.linkedBm]: bmRecordId ? [bmRecordId] : [],
                 });
                 addLog(`    + Ad Acc: ${fbAdAcc.name} (created)`, false, true);
-                results.adAccounts++;
               }
+              results.adAccounts++;
             } catch (e) {
               addLog(`    Error: ${e instanceof Error ? e.message : String(e)}`, true);
               results.errors++;
@@ -529,7 +527,6 @@ export function useInfraActions(
 
                 if (needsLink) {
                   updateFields[FX.linkedBms] = [...currentLinked, bmRecordId];
-                  results.pixels++;
                 }
 
                 await updateInfraRecord('pixels', existing.id, updateFields);
@@ -543,8 +540,8 @@ export function useInfraActions(
                   [FX.ownerBm]: bmRecordId ? [bmRecordId] : [],
                 });
                 addLog(`    + Pixel: ${fbPixel.name} (created)`, false, true);
-                results.pixels++;
               }
+              results.pixels++;
             } catch (e) {
               addLog(`    Error: ${e instanceof Error ? e.message : String(e)}`, true);
               results.errors++;
@@ -579,7 +576,6 @@ export function useInfraActions(
             if (needsLink) {
               updateFields[FG.linkedProfiles] = [...currentLinked, profileId];
               addLog(`  + Page: ${fbPage.name} (linking)`, false, true);
-              results.pages++;
             }
 
             await updateInfraRecord('pages', existing.id, updateFields);
@@ -593,8 +589,8 @@ export function useInfraActions(
               [FG.linkedProfiles]: [profileId],
             });
             addLog(`  + Page: ${fbPage.name} (created)`, false, true);
-            results.pages++;
           }
+          results.pages++;
         } catch (e) {
           addLog(`  Error: ${e instanceof Error ? e.message : String(e)}`, true);
           results.errors++;
