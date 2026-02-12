@@ -49,9 +49,9 @@ async function apiCall<T = Record<string, unknown>>(
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.error) {
-    throw new Error(data.error.message || 'API call failed');
-  }
+  // if (data.error) {
+  //   throw new Error(data.error.message || 'API call failed');
+  // }
 
   return data as T;
 }
@@ -195,6 +195,42 @@ export async function getBMAdAccounts(
   );
   return response.data || [];
 }
+
+// export async function getBMAdAccounts(
+//   token: string,
+//   bmId: string
+// ): Promise<FBAdAccount[]> {
+//   const fields = 'id,name,account_status,currency,amount_spent,timezone_name';
+
+//   const [ownedResponse, clientResponse] = await Promise.all([
+//     apiCall<{ data: FBAdAccount[] }>(
+//       `/${bmId}/owned_ad_accounts`,
+//       token,
+//       { fields, limit: '100' }
+//     ),
+//     apiCall<{ data: FBAdAccount[] }>(
+//       `/${bmId}/client_ad_accounts`,
+//       token,
+//       { fields, limit: '100' }
+//     ).catch(() => ({ data: [] as FBAdAccount[] })),
+//   ]);
+
+//   const owned = ownedResponse.data || [];
+//   const client = clientResponse.data || [];
+
+//   // Deduplicate by account ID
+//   const seen = new Set(owned.map(a => a.id));
+//   const unique = [...owned];
+//   for (const acc of client) {
+//     if (!seen.has(acc.id)) {
+//       unique.push(acc);
+//       seen.add(acc.id);
+//     }
+//   }
+
+//   return unique;
+// }
+
 
 export async function getBMPixels(
   token: string,

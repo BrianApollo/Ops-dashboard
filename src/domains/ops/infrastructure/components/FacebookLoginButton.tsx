@@ -85,7 +85,7 @@ export function FacebookLoginButton() {
             const profiles = await listProfiles();
             const F = FIELDS.profiles;
 
-            const existingProfile = profiles.find(p => p.uid === userInfo.id || p.profileName === userInfo.name);
+            const existingProfile = profiles.find(p => p.profileId === userInfo.id || p.profileName === userInfo.name);
 
             // Calculate expiry date
             const expiryDate = new Date();
