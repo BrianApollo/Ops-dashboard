@@ -71,6 +71,7 @@ export function InfrastructurePage() {
         onGenerateToken={actions.generateSystemUserToken}
         onPasteToken={actions.openSetTokenDialog}
         onToggleItemHidden={actions.toggleItemHidden}
+        onUpdateProfile={actions.updateProfileSetup}
       />
 
       {/* Dialogs */}
