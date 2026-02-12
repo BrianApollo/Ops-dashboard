@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import {
-  Box, Typography, Button, LinearProgress, IconButton, Tooltip, Collapse, Link,
+  Box, Typography, Button, LinearProgress, IconButton, Collapse, Link,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -40,7 +40,7 @@ interface DetailsSidebarProps {
   onSyncProfileData: (id: string) => void;
   onGenerateToken: (id: string) => void;
   onPasteToken: (id: string) => void;
-  onToggleHidden: (type: keyof typeof import('../../../../features/infrastructure/config').FIELDS, id: string) => void;
+  onToggleHidden: (type: EntityType, id: string) => void;
   onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }
 
@@ -65,7 +65,6 @@ export function DetailsSidebar({
   onToggleHidden,
   onUpdateProfile,
 }: DetailsSidebarProps) {
-  const theme = useTheme();
   const { type, id } = selectedNode;
 
   const record = (data[type] as Array<{ id: string }>).find(r => r.id === id);
@@ -82,7 +81,7 @@ export function DetailsSidebar({
       }}
     >
       {type === 'profiles' && <ProfileSidebar record={record as InfraProfile} connectedByType={connectedByType} onValidate={onValidateProfileToken} onRefresh={onRefreshProfileToken} onSync={onSyncProfileData} onToggleHidden={onToggleHidden} onUpdateProfile={onUpdateProfile} />}
-      {type === 'bms' && <BMSidebar record={record as InfraBM} data={data} connectedByType={connectedByType} onValidate={onValidateBMToken} onGenerate={onGenerateToken} onPaste={onPasteToken} onToggleHidden={onToggleHidden} />}
+      {type === 'bms' && <BMSidebar record={record as InfraBM} connectedByType={connectedByType} onValidate={onValidateBMToken} onGenerate={onGenerateToken} onPaste={onPasteToken} onToggleHidden={onToggleHidden} />}
       {type === 'adaccounts' && <AdAccountSidebar record={record as InfraAdAccount} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
       {type === 'pages' && <PageSidebar record={record as InfraPage} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
       {type === 'pixels' && <PixelSidebar record={record as InfraPixel} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
@@ -173,16 +172,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function buildSidebarItems(
-  items: Array<{ id: string;[key: string]: unknown }>,
-  nameField: string,
-  statusField: string,
+function buildSidebarItems<T extends { id: string }>(
+  items: T[],
+  nameField: keyof T,
+  statusField: keyof T,
   badge: string,
 ) {
   return items.map(item => ({
     id: item.id,
-    name: String((item as Record<string, unknown>)[nameField] || 'Unnamed'),
-    status: String((item as Record<string, unknown>)[statusField] || 'Unknown'),
+    name: String(item[nameField] || 'Unnamed'),
+    status: String(item[statusField] || 'Unknown'),
     badge,
   }));
 }
@@ -191,19 +190,19 @@ function ConnectedSections({ connectedByType, excludeType }: { connectedByType: 
   return (
     <>
       {excludeType !== 'profiles' && connectedByType.profiles.length > 0 && (
-        <SidebarSection title="Profiles" icon={<PersonIcon />} items={buildSidebarItems(connectedByType.profiles, 'profileName', 'profileStatus', 'PR')} />
+        <SidebarSection title="Profiles" icon={<PersonIcon />} items={buildSidebarItems(connectedByType.profiles as InfraProfile[], 'profileName', 'profileStatus', 'PR')} />
       )}
       {excludeType !== 'bms' && connectedByType.bms.length > 0 && (
-        <SidebarSection title="Business Managers" icon={<BusinessIcon />} items={buildSidebarItems(connectedByType.bms, 'bmName', 'bmStatus', 'BM')} />
+        <SidebarSection title="Business Managers" icon={<BusinessIcon />} items={buildSidebarItems(connectedByType.bms as InfraBM[], 'bmName', 'bmStatus', 'BM')} />
       )}
       {excludeType !== 'adaccounts' && connectedByType.adaccounts.length > 0 && (
-        <SidebarSection title="Ad Accounts" icon={<AttachMoneyIcon />} items={buildSidebarItems(connectedByType.adaccounts, 'adAccName', 'adAccStatus', 'AA')} />
+        <SidebarSection title="Ad Accounts" icon={<AttachMoneyIcon />} items={buildSidebarItems(connectedByType.adaccounts as InfraAdAccount[], 'adAccName', 'adAccStatus', 'AA')} />
       )}
       {excludeType !== 'pages' && connectedByType.pages.length > 0 && (
-        <SidebarSection title="Pages" icon={<WebIcon />} items={buildSidebarItems(connectedByType.pages, 'pageName', 'published', 'PG')} />
+        <SidebarSection title="Pages" icon={<WebIcon />} items={buildSidebarItems(connectedByType.pages as InfraPage[], 'pageName', 'published', 'PG')} />
       )}
       {excludeType !== 'pixels' && connectedByType.pixels.length > 0 && (
-        <SidebarSection title="Pixels" icon={<GridViewIcon />} items={buildSidebarItems(connectedByType.pixels, 'pixelName', 'available', 'PX')} />
+        <SidebarSection title="Pixels" icon={<GridViewIcon />} items={buildSidebarItems(connectedByType.pixels as InfraPixel[], 'pixelName', 'available', 'PX')} />
       )}
     </>
   );
@@ -216,7 +215,7 @@ function ConnectedSections({ connectedByType, excludeType }: { connectedByType: 
 function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync, onToggleHidden, onUpdateProfile }: {
   record: InfraProfile; connectedByType: ConnectedByType;
   onValidate: (id: string) => void; onRefresh: (id: string) => void; onSync: (id: string) => void;
-  onToggleHidden: (type: string, id: string) => void;
+  onToggleHidden: (type: EntityType, id: string) => void;
   onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }) {
   const theme = useTheme();
@@ -413,10 +412,11 @@ function SetupRow({ label, value, isPassword, isLink }: { label: string; value: 
 // BM SIDEBAR
 // =============================================================================
 
-function BMSidebar({ record, data, connectedByType, onValidate, onGenerate, onPaste, onToggleHidden }: {
-  record: InfraBM; data: InfraData; connectedByType: ConnectedByType;
+
+function BMSidebar({ record, connectedByType, onValidate, onGenerate, onPaste, onToggleHidden }: {
+  record: InfraBM; connectedByType: ConnectedByType;
   onValidate: (id: string) => void; onGenerate: (id: string) => void; onPaste: (id: string) => void;
-  onToggleHidden: (type: string, id: string) => void;
+  onToggleHidden: (type: EntityType, id: string) => void;
 }) {
   const theme = useTheme();
   const hasToken = !!record.systemUserToken;
@@ -500,7 +500,7 @@ function BMSidebar({ record, data, connectedByType, onValidate, onGenerate, onPa
 
 function AdAccountSidebar({ record, connectedByType, onToggleHidden }: {
   record: InfraAdAccount; connectedByType: ConnectedByType;
-  onToggleHidden: (type: string, id: string) => void;
+  onToggleHidden: (type: EntityType, id: string) => void;
 }) {
   const theme = useTheme();
 
@@ -539,7 +539,7 @@ function AdAccountSidebar({ record, connectedByType, onToggleHidden }: {
 
 function PageSidebar({ record, connectedByType, onToggleHidden }: {
   record: InfraPage; connectedByType: ConnectedByType;
-  onToggleHidden: (type: string, id: string) => void;
+  onToggleHidden: (type: EntityType, id: string) => void;
 }) {
   return (
     <Box>
@@ -580,7 +580,7 @@ function PageSidebar({ record, connectedByType, onToggleHidden }: {
 
 function PixelSidebar({ record, connectedByType, onToggleHidden }: {
   record: InfraPixel; connectedByType: ConnectedByType;
-  onToggleHidden: (type: string, id: string) => void;
+  onToggleHidden: (type: EntityType, id: string) => void;
 }) {
   return (
     <Box>

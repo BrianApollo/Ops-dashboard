@@ -7,7 +7,6 @@
 
 import { useRef, useMemo } from 'react';
 import { Box, Slide } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import { TreeColumn } from './TreeColumn';
 import { TreeConnections } from './TreeConnections';
 import { DetailsSidebar } from './DetailsSidebar';
@@ -46,7 +45,7 @@ interface TreeCanvasProps {
   onSyncProfileData: (id: string) => void;
   onGenerateToken: (id: string) => void;
   onPasteToken: (id: string) => void;
-  onToggleItemHidden: (type: string, id: string) => void;
+  onToggleItemHidden: (type: EntityType, id: string) => void;
   onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }
 
@@ -75,7 +74,6 @@ export function TreeCanvas({
   onToggleItemHidden,
   onUpdateProfile,
 }: TreeCanvasProps) {
-  const theme = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
