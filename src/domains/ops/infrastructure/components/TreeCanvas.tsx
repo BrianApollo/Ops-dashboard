@@ -14,6 +14,7 @@ import { DetailsSidebar } from './DetailsSidebar';
 import type {
   InfraData, TreeConnection, TreeFilterState,
   SelectedNode, EntityType, ConnectedByType,
+  InfraProfile,
 } from '../../../../features/infrastructure/types';
 
 interface TreeCanvasProps {
@@ -46,6 +47,7 @@ interface TreeCanvasProps {
   onGenerateToken: (id: string) => void;
   onPasteToken: (id: string) => void;
   onToggleItemHidden: (type: string, id: string) => void;
+  onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }
 
 export function TreeCanvas({
@@ -71,6 +73,7 @@ export function TreeCanvas({
   onGenerateToken,
   onPasteToken,
   onToggleItemHidden,
+  onUpdateProfile,
 }: TreeCanvasProps) {
   const theme = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -276,6 +279,7 @@ export function TreeCanvas({
               onGenerateToken={onGenerateToken}
               onPasteToken={onPasteToken}
               onToggleHidden={onToggleItemHidden}
+              onUpdateProfile={onUpdateProfile}
             />
           )}
         </Box>

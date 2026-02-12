@@ -35,6 +35,9 @@ export interface InfraProfile {
   securityEmailPassword: string;
   proxy: string;
   profileYoutubeHandle: string;
+  profileGender: string;
+  profileLocation: string;
+  profileYearCreated: string;
   uid: string;
 }
 

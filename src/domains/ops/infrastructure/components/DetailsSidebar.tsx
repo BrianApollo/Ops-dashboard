@@ -23,6 +23,7 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { SidebarSection } from './SidebarSection';
+import { SetupInfoDialog } from './SetupInfoDialog';
 import { getStatusBadgeClass } from '../useTreeState';
 import type {
   SelectedNode, InfraData, ConnectedByType, EntityType,
@@ -40,6 +41,7 @@ interface DetailsSidebarProps {
   onGenerateToken: (id: string) => void;
   onPasteToken: (id: string) => void;
   onToggleHidden: (type: keyof typeof import('../../../../features/infrastructure/config').FIELDS, id: string) => void;
+  onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }
 
 function copyToClipboard(text: string) {
@@ -61,6 +63,7 @@ export function DetailsSidebar({
   onGenerateToken,
   onPasteToken,
   onToggleHidden,
+  onUpdateProfile,
 }: DetailsSidebarProps) {
   const theme = useTheme();
   const { type, id } = selectedNode;
@@ -78,7 +81,7 @@ export function DetailsSidebar({
         borderColor: 'divider',
       }}
     >
-      {type === 'profiles' && <ProfileSidebar record={record as InfraProfile} connectedByType={connectedByType} onValidate={onValidateProfileToken} onRefresh={onRefreshProfileToken} onSync={onSyncProfileData} onToggleHidden={onToggleHidden} />}
+      {type === 'profiles' && <ProfileSidebar record={record as InfraProfile} connectedByType={connectedByType} onValidate={onValidateProfileToken} onRefresh={onRefreshProfileToken} onSync={onSyncProfileData} onToggleHidden={onToggleHidden} onUpdateProfile={onUpdateProfile} />}
       {type === 'bms' && <BMSidebar record={record as InfraBM} data={data} connectedByType={connectedByType} onValidate={onValidateBMToken} onGenerate={onGenerateToken} onPaste={onPasteToken} onToggleHidden={onToggleHidden} />}
       {type === 'adaccounts' && <AdAccountSidebar record={record as InfraAdAccount} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
       {type === 'pages' && <PageSidebar record={record as InfraPage} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
@@ -171,7 +174,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function buildSidebarItems(
-  items: Array<{ id: string; [key: string]: unknown }>,
+  items: Array<{ id: string;[key: string]: unknown }>,
   nameField: string,
   statusField: string,
   badge: string,
@@ -210,13 +213,20 @@ function ConnectedSections({ connectedByType, excludeType }: { connectedByType: 
 // PROFILE SIDEBAR
 // =============================================================================
 
-function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync, onToggleHidden }: {
+function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync, onToggleHidden, onUpdateProfile }: {
   record: InfraProfile; connectedByType: ConnectedByType;
   onValidate: (id: string) => void; onRefresh: (id: string) => void; onSync: (id: string) => void;
   onToggleHidden: (type: string, id: string) => void;
+  onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }) {
   const theme = useTheme();
   const [setupOpen, setSetupOpen] = useState(false);
+  const [setupEditOpen, setSetupEditOpen] = useState(false);
+
+  const handleUpdateProfile = async (id: string, updates: Partial<InfraProfile>) => {
+    await onUpdateProfile(id, updates);
+    setSetupEditOpen(false);
+  };
 
   // Token health
   let healthPercent = 0;
@@ -308,31 +318,51 @@ function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync
       </Box>
 
       {/* Setup Information */}
-      {setupFields.length > 0 && (
-        <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+        <Box
+          sx={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            px: 2, py: 1.5,
+            '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.03) },
+          }}
+        >
           <Box
             onClick={() => setSetupOpen(!setupOpen)}
-            sx={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              px: 2, py: 1.5, cursor: 'pointer',
-              '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.03) },
-            }}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', flex: 1 }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SettingsIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>Setup Information</Typography>
-            </Box>
-            <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: setupOpen ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+            <SettingsIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>Setup Information</Typography>
           </Box>
-          <Collapse in={setupOpen}>
-            <Box sx={{ px: 2, pb: 1.5 }}>
-              {setupFields.map((field, idx) => (
-                <SetupRow key={idx} label={field.label} value={field.value} isPassword={field.isPassword} isLink={field.isLink} />
-              ))}
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); setSetupEditOpen(true); }} sx={{ p: 0.5 }}>
+              <EditIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+            <Box onClick={() => setSetupOpen(!setupOpen)} sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: setupOpen ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
             </Box>
-          </Collapse>
+          </Box>
         </Box>
-      )}
+        <Collapse in={setupOpen}>
+          <Box sx={{ px: 2, pb: 1.5 }}>
+            {setupFields.length > 0 ? (
+              setupFields.map((field, idx) => (
+                <SetupRow key={idx} label={field.label} value={field.value} isPassword={field.isPassword} isLink={field.isLink} />
+              ))
+            ) : (
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>No setup details available</Typography>
+            )}
+          </Box>
+        </Collapse>
+      </Box>
+
+      {/* Dialogs */}
+      <SetupInfoDialog
+        open={setupEditOpen}
+        profile={record}
+        onClose={() => setSetupEditOpen(false)}
+        onSave={handleUpdateProfile}
+      />
 
       <ConnectedSections connectedByType={connectedByType} excludeType="profiles" />
 

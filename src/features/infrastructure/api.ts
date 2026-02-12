@@ -15,14 +15,33 @@ const FB_APP_SECRET = import.meta.env.VITE_FB_APP_SECRET as string;
 // HELPERS
 // =============================================================================
 
+export async function getAppSecretProof(accessToken: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(FB_APP_SECRET);
+  const messageData = encoder.encode(accessToken);
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  const hashArray = Array.from(new Uint8Array(signature));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function apiCall<T = Record<string, unknown>>(
   endpoint: string,
   accessToken: string,
   params: Record<string, string> = {}
 ): Promise<T> {
+  const appSecretProof = await getAppSecretProof(accessToken);
   const queryParams = new URLSearchParams({
     access_token: accessToken,
-    appsecret_proof: import.meta.env.VITE_APP_SECRET_PROOF,
+    appsecret_proof: appSecretProof,
     ...params,
   });
 
@@ -211,11 +230,12 @@ export async function createSystemUser(
   name: string,
   role: string = 'ADMIN'
 ): Promise<{ id: string }> {
+  const appSecretProof = await getAppSecretProof(token);
   const params = new URLSearchParams({
     name,
     role,
     access_token: token,
-    appsecret_proof: import.meta.env.VITE_APP_SECRET_PROOF,
+    appsecret_proof: appSecretProof,
   });
 
   const url = `${FB_GRAPH_URL}/${FB_API_VERSION}/${bmId}/system_users`;
@@ -234,11 +254,12 @@ export async function generateSystemUserAccessToken(
   systemUserId: string,
   scopes: string = 'business_management,ads_management,ads_read,pages_read_engagement,pages_manage_metadata'
 ): Promise<{ access_token: string }> {
+  const appSecretProof = await getAppSecretProof(adminToken);
   const params = new URLSearchParams({
     business_app: FB_APP_ID,
     scope: scopes,
     access_token: adminToken,
-    appsecret_proof: import.meta.env.VITE_APP_SECRET_PROOF,
+    appsecret_proof: appSecretProof,
   });
 
   const url = `${FB_GRAPH_URL}/${FB_API_VERSION}/${systemUserId}/access_tokens`;

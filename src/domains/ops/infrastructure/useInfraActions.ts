@@ -14,7 +14,7 @@ import {
   getInfraRecord,
 } from '../../../features/infrastructure/data';
 import * as fbApi from '../../../features/infrastructure/api';
-import type { InfraData, InfraBM, InfraProfile } from '../../../features/infrastructure/types';
+import type { InfraData, InfraProfile } from '../../../features/infrastructure/types';
 
 // =============================================================================
 // TYPES
@@ -210,7 +210,7 @@ export function useInfraActions(
     }
 
     const FB = FIELDS.bms;
-    const FP = FIELDS.profiles;
+
     const bmName = bm.bmName || 'Business Manager';
     const fbBmId = bm.bmId;
 
@@ -664,6 +664,29 @@ export function useInfraActions(
     }
   }, [data, toast, refetchAll]);
 
+  const updateProfileSetup = useCallback(async (profileId: string, updates: Partial<InfraProfile>) => {
+    try {
+      const fieldMap: Partial<Record<keyof InfraProfile, string>> = FIELDS.profiles;
+      const airtableUpdates: Record<string, unknown> = {};
+
+      Object.entries(updates).forEach(([key, value]) => {
+        const fieldName = fieldMap[key as keyof InfraProfile];
+        if (fieldName && value !== '') {
+          airtableUpdates[fieldName] = value;
+        }
+      });
+
+      if (Object.keys(airtableUpdates).length > 0) {
+        await updateInfraRecord('profiles', profileId, airtableUpdates);
+        await refetchAll();
+        toast.success('Profile setup updated');
+      }
+    } catch (err) {
+      toast.error('Failed to update profile: ' + (err instanceof Error ? err.message : String(err)));
+      throw err;
+    }
+  }, [refetchAll, toast]);
+
   return {
     validateProfileToken,
     validateBMToken,
@@ -679,5 +702,6 @@ export function useInfraActions(
     closeSyncDialog,
     syncDialog,
     toggleItemHidden,
+    updateProfileSetup,
   };
 }
