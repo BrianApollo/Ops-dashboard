@@ -427,7 +427,7 @@ export function useVideosController(): UseVideosControllerResult {
         // INVARIANT: Only write to Airtable if we have a valid Cloudflare URL
         // This ensures no URL is stored unless the file actually exists in R2
         // =======================================================================
-        if (!result.url || !result.url.includes('trustapollo.media')) {
+        if (!result.url || !result.url.includes(import.meta.env.VITE_CF_R2_DOMAIN)) {
           throw new Error(
             `Upload invariant violated: Invalid or missing URL. Got: ${result.url}`
           );

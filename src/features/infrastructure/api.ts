@@ -181,67 +181,90 @@ export async function getPages(token: string): Promise<FBPage[]> {
   return response.data || [];
 }
 
-export async function getBMAdAccounts(
-  token: string,
-  bmId: string
-): Promise<FBAdAccount[]> {
-  const response = await apiCall<{ data: FBAdAccount[] }>(
-    `/${bmId}/owned_ad_accounts`,
-    token,
-    {
-      fields: 'id,name,account_status,currency,amount_spent,timezone_name',
-      limit: '100',
-    }
-  );
-  return response.data || [];
-}
-
 // export async function getBMAdAccounts(
 //   token: string,
 //   bmId: string
 // ): Promise<FBAdAccount[]> {
-//   const fields = 'id,name,account_status,currency,amount_spent,timezone_name';
-
-//   const [ownedResponse, clientResponse] = await Promise.all([
-//     apiCall<{ data: FBAdAccount[] }>(
-//       `/${bmId}/owned_ad_accounts`,
-//       token,
-//       { fields, limit: '100' }
-//     ),
-//     apiCall<{ data: FBAdAccount[] }>(
-//       `/${bmId}/client_ad_accounts`,
-//       token,
-//       { fields, limit: '100' }
-//     ).catch(() => ({ data: [] as FBAdAccount[] })),
-//   ]);
-
-//   const owned = ownedResponse.data || [];
-//   const client = clientResponse.data || [];
-
-//   // Deduplicate by account ID
-//   const seen = new Set(owned.map(a => a.id));
-//   const unique = [...owned];
-//   for (const acc of client) {
-//     if (!seen.has(acc.id)) {
-//       unique.push(acc);
-//       seen.add(acc.id);
+//   const response = await apiCall<{ data: FBAdAccount[] }>(
+//     `/${bmId}/owned_ad_accounts`,
+//     token,
+//     {
+//       fields: 'id,name,account_status,currency,amount_spent,timezone_name',
+//       limit: '100',
 //     }
-//   }
-
-//   return unique;
+//   );
+//   return response.data || [];
 // }
+
+export async function getBMAdAccounts(
+  token: string,
+  bmId: string
+): Promise<FBAdAccount[]> {
+  const fields = 'id,name,account_status,currency,amount_spent,timezone_name';
+
+  const [ownedResponse, clientResponse] = await Promise.all([
+    apiCall<{ data: FBAdAccount[] }>(
+      `/${bmId}/owned_ad_accounts`,
+      token,
+      { fields, limit: '100' }
+    ),
+    apiCall<{ data: FBAdAccount[] }>(
+      `/${bmId}/client_ad_accounts`,
+      token,
+      { fields, limit: '100' }
+    ).catch(() => ({ data: [] as FBAdAccount[] })),
+  ]);
+
+  const owned = ownedResponse.data || [];
+  const client = clientResponse.data || [];
+
+  // Deduplicate by account ID
+  const seen = new Set(owned.map(a => a.id));
+  const unique = [...owned];
+  for (const acc of client) {
+    if (!seen.has(acc.id)) {
+      unique.push(acc);
+      seen.add(acc.id);
+    }
+  }
+
+  return unique;
+}
 
 
 export async function getBMPixels(
   token: string,
   bmId: string
 ): Promise<FBPixel[]> {
-  const response = await apiCall<{ data: FBPixel[] }>(
-    `/${bmId}/owned_pixels`,
-    token,
-    { fields: 'id,name,last_fired_time', limit: '100' }
-  );
-  return response.data || [];
+  const fields = 'id,name,last_fired_time';
+
+  const [ownedResponse, clientResponse] = await Promise.all([
+    apiCall<{ data: FBPixel[] }>(
+      `/${bmId}/owned_pixels`,
+      token,
+      { fields, limit: '100' }
+    ),
+    apiCall<{ data: FBPixel[] }>(
+      `/${bmId}/adspixels`,
+      token,
+      { fields, limit: '100' }
+    ).catch(() => ({ data: [] as FBPixel[] })),
+  ]);
+
+  const owned = ownedResponse.data || [];
+  const client = clientResponse.data || [];
+
+  // Deduplicate by pixel ID
+  const seen = new Set(owned.map(p => p.id));
+  const unique = [...owned];
+  for (const pixel of client) {
+    if (!seen.has(pixel.id)) {
+      unique.push(pixel);
+      seen.add(pixel.id);
+    }
+  }
+
+  return unique;
 }
 
 // =============================================================================
