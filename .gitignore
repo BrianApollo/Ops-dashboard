@@ -28,6 +28,8 @@ Thumbs.db
 .idea/
 *.swp
 
+.env.*
+
 # cache
 .eslintcache
 .cache/
