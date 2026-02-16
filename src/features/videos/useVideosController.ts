@@ -19,7 +19,9 @@ import { useBulkActions } from '../../core/bulk';
 import { useToast } from '../../core/toast';
 import type { FilterOption } from '../../core/list';
 import type { VideoAsset, VideoFilters, VideoStatus, VideoFormat, VideoSavePayload } from './types';
+import { useQuery } from '@tanstack/react-query';
 import { listVideos, updateVideo, updateVideoStatus, deleteVideos, updateVideoAfterUpload, createVideoBatch, getEditors } from './data';
+import { listUsers } from '../scripts/data';
 import type { CreateVideoInput } from './data';
 import { generateVideoName } from './generateVideoName';
 import { uploadVideoWithFolder, isUploadInProgress } from './drive';
@@ -212,16 +214,20 @@ export function useVideosController(): UseVideosControllerResult {
     [list.allRecords]
   );
 
-  // Derive unique editor options from all records
+  // Fetch all users (cached by React Query if used elsewhere)
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: listUsers,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Filter to only Video Editors for the dropdown
   const editorOptions = useMemo<FilterOption[]>(() => {
-    const uniqueEditors = new Map<string, string>();
-    list.allRecords.forEach((v) => {
-      uniqueEditors.set(v.editor.id, v.editor.name);
-    });
-    return Array.from(uniqueEditors.entries())
-      .map(([id, name]) => ({ value: id, label: name }))
+    return allUsers
+      .filter((u) => u.role === 'Video Editor')
+      .map((u) => ({ value: u.id, label: u.name }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [list.allRecords]);
+  }, [allUsers]);
 
   // Derive unique product options from all records
   const productOptions = useMemo<FilterOption[]>(() => {

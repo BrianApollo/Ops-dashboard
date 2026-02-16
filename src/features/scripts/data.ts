@@ -131,7 +131,7 @@ async function airtableFetch(
 // =============================================================================
 
 let productsCache: Map<string, { id: string; name: string }> | null = null;
-let usersCache: Map<string, { id: string; name: string }> | null = null;
+let usersCache: Map<string, { id: string; name: string; role: string }> | null = null;
 
 async function fetchProducts(): Promise<Map<string, { id: string; name: string }>> {
   if (productsCache) {
@@ -154,7 +154,7 @@ async function fetchProducts(): Promise<Map<string, { id: string; name: string }
   return map;
 }
 
-async function fetchUsers(): Promise<Map<string, { id: string; name: string }>> {
+async function fetchUsers(): Promise<Map<string, { id: string; name: string; role: string }>> {
   if (usersCache) {
     return usersCache;
   }
@@ -162,17 +162,38 @@ async function fetchUsers(): Promise<Map<string, { id: string; name: string }>> 
   const response = await airtableFetch(USERS_TABLE);
   const data: AirtableResponse = await response.json();
 
-  const map = new Map<string, { id: string; name: string }>();
+  const map = new Map<string, { id: string; name: string; role: string }>();
 
   for (const record of data.records) {
     const name = typeof record.fields[FIELD_USER_NAME] === 'string'
       ? record.fields[FIELD_USER_NAME]
       : 'Unknown';
-    map.set(record.id, { id: record.id, name });
+
+    const rawRole = record.fields['Role'];
+    let role = '';
+    if (Array.isArray(rawRole)) {
+      role = rawRole[0] || '';
+    } else if (typeof rawRole === 'string') {
+      role = rawRole;
+    }
+
+    map.set(record.id, { id: record.id, name, role: role.trim() });
   }
 
   usersCache = map;
   return map;
+}
+
+// =============================================================================
+// READ OPERATIONS
+// =============================================================================
+
+/**
+ * List all users.
+ */
+export async function listUsers(): Promise<Array<{ id: string; name: string; role: string }>> {
+  const usersMap = await fetchUsers();
+  return Array.from(usersMap.values());
 }
 
 // =============================================================================
@@ -351,10 +372,7 @@ export function clearCaches(): void {
  * List all users (for author selection).
  * Returns an array of { id, name } objects.
  */
-export async function listUsers(): Promise<Array<{ id: string; name: string }>> {
-  const usersMap = await fetchUsers();
-  return Array.from(usersMap.values());
-}
+
 
 // =============================================================================
 // WRITE OPERATIONS

@@ -316,7 +316,7 @@ export function ProductsPage() {
 
       console.log('Sending Create Images payload:', payload);
 
-      const response = await fetch('https://trustapollo.app.n8n.cloud/webhook/23327034-c139-4fff-acad-365ac8f7b0bf', {
+      const response = await fetch(import.meta.env.VITE_IMAGE_GENERATION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
