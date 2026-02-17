@@ -404,7 +404,7 @@ export function ProductsPage() {
       setSelectedImageIds(new Set());
     } catch (error) {
       console.error('Failed to approve images:', error);
-      alert('Failed to approve images.');
+      alert(`Failed to approve images: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsApprovingImages(false);
     }
