@@ -602,6 +602,23 @@ export async function updateLaunchData(params: UpdateLaunchDataParams): Promise<
 }
 
 /**
+ * Update campaign status in Airtable.
+ */
+export async function updateCampaignStatus(
+  campaignId: string,
+  status: CampaignStatus
+): Promise<void> {
+  await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fields: {
+        [FIELD_CAMPAIGN_STATUS]: status,
+      },
+    }),
+  });
+}
+
+/**
  * Update a campaign's used media (videos and images).
  * Maps names to Airtable Record IDs.
  */

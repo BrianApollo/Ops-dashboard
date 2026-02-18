@@ -77,16 +77,21 @@ export function useInfraActions(
       const result = await fbApi.validateToken(profile.permanentToken);
 
       const fields: Record<string, unknown> = { [FIELDS.profiles.tokenValid]: result.isValid };
-      if (result.expiresAt) {
-        fields[FIELDS.profiles.permanentTokenEndDate] = result.expiresAt.toISOString().split('T')[0];
+
+      // Prefer data_access_expires_at if available (for long-lived tokens), otherwise standard expiry
+      const expiryDate = result.dataAccessExpiresAt || result.expiresAt;
+
+      if (expiryDate) {
+        fields[FIELDS.profiles.permanentTokenEndDate] = expiryDate.toISOString().split('T')[0];
       }
 
       await updateInfraRecord('profiles', profileId, fields);
       await refetchAll();
 
       if (result.isValid) {
-        const days = result.expiresAt
-          ? Math.ceil((result.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        const expiryDate = result.dataAccessExpiresAt || result.expiresAt;
+        const days = expiryDate
+          ? Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
           : null;
         toast.success(days ? `Token valid (${days}d left)` : 'Token valid (never expires)');
       } else {

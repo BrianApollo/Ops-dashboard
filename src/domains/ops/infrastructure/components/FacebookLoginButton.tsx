@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button, CircularProgress } from '@mui/material';
 import FacebookIcon from '@mui/icons-material/Facebook';
 import { useInfrastructureController } from '../../../../features/infrastructure/useInfrastructureController';
-import { exchangeToken, getMe } from '../../../../features/infrastructure/api';
+import { exchangeToken, getMe, validateToken } from '../../../../features/infrastructure/api';
 import { listProfiles, createInfraRecord, updateInfraRecord } from '../../../../features/infrastructure/data';
 import { FIELDS } from '../../../../features/infrastructure/config';
 
@@ -72,7 +72,6 @@ export function FacebookLoginButton() {
             }
 
             const shortLivedToken = response.authResponse.accessToken;
-            console.log('FB Access Token:', shortLivedToken);
 
             // 2. Exchange for long-lived token
             const tokenData = await exchangeToken(shortLivedToken);
@@ -87,9 +86,12 @@ export function FacebookLoginButton() {
 
             const existingProfile = profiles.find(p => p.profileId === userInfo.id || p.profileName === userInfo.name);
 
-            // Calculate expiry date
-            const expiryDate = new Date();
-            expiryDate.setSeconds(expiryDate.getSeconds() + tokenData.expiresIn);
+            // 2a. Validate token to get accurate expiry (data_access_expires_at)
+            const validation = await validateToken(tokenData.token);
+            const expiryDate = validation.dataAccessExpiresAt || new Date();
+            if (!validation.dataAccessExpiresAt) {
+                expiryDate.setSeconds(expiryDate.getSeconds() + tokenData.expiresIn);
+            }
             const expiryDateStr = expiryDate.toISOString().split('T')[0];
 
             const fields: Record<string, unknown> = {
