@@ -69,6 +69,7 @@ export function calculateExpiryDate(expiresIn: number): string {
 interface TokenValidation {
   isValid: boolean;
   expiresAt: Date | null;
+  dataAccessExpiresAt: Date | null;
   scopes: string[];
   userId?: string;
   error?: string;
@@ -82,12 +83,13 @@ export async function validateToken(token: string): Promise<TokenValidation> {
   const data = await response.json();
 
   if (data.error || !data.data) {
-    return { isValid: false, expiresAt: null, scopes: [], error: data.error?.message };
+    return { isValid: false, expiresAt: null, dataAccessExpiresAt: null, scopes: [], error: data.error?.message };
   }
 
   return {
     isValid: data.data.is_valid,
     expiresAt: data.data.expires_at ? new Date(data.data.expires_at * 1000) : null,
+    dataAccessExpiresAt: data.data.data_access_expires_at ? new Date(data.data.data_access_expires_at * 1000) : null,
     scopes: data.data.scopes || [],
     userId: data.data.user_id,
   };

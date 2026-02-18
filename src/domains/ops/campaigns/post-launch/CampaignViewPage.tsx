@@ -53,6 +53,7 @@ import {
   createFbAd,
   getFbVideoStatus,
   getFbVideoThumbnail,
+  updateCampaignStatus,
 } from '../../../../features/campaigns';
 import { useProfilesController } from '../../../../features/profiles';
 import { fetchRedtrackReport, type RedTrackReportRow } from '../../../../features/redtrack';
@@ -881,7 +882,16 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
     setIsUpdating('campaign-status');
     try {
       await updateFbCampaignStatus(campaign.fbCampaignId!, newStatus, accessToken);
+
+      // Sync to Airtable
+      // PAUSED -> Cancelled
+      // ACTIVE -> Launched
+      const airtableStatus = newStatus === 'PAUSED' ? 'Cancelled' : 'Launched';
+      await updateCampaignStatus(campaign.id, airtableStatus);
+
       queryClient.invalidateQueries({ queryKey: ['fb-campaign'] });
+      // Invalidate campaign query to reflect Airtable status change
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] });
     } finally {
       setIsUpdating(null);
     }
