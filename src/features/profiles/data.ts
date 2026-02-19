@@ -172,3 +172,34 @@ export async function getActiveProfiles(): Promise<Profile[]> {
         .map((record) => mapAirtableToProfile(record))
         .filter((p): p is Profile => p !== null);
 }
+
+/**
+ * Get the Master Profile ID from the "Master Profile" table.
+ * Assumes there is only one relevant record or we take the first one.
+ */
+const MASTER_PROFILE_TABLE = 'Master Profile';
+const FIELD_MASTER_PROFILE_ID = 'Profile Record';
+
+export async function getMasterProfileId(): Promise<string | null> {
+    try {
+        // Fetch first record from Master Profile table
+        const response = await airtableFetch(`${MASTER_PROFILE_TABLE}?maxRecords=1`);
+        const data: AirtableResponse = await response.json();
+
+        if (data.records && data.records.length > 0) {
+            const record = data.records[0];
+            const profileValue = record.fields[FIELD_MASTER_PROFILE_ID];
+
+            // Handle Linked Record (array of strings) or straight string
+            if (Array.isArray(profileValue) && profileValue.length > 0) {
+                return profileValue[0] as string;
+            } else if (typeof profileValue === 'string') {
+                return profileValue;
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to fetch Master Profile ID:', error);
+        return null;
+    }
+}
