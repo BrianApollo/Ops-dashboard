@@ -159,6 +159,7 @@ export interface UseVideosControllerResult {
     count: number;
   }) => Promise<void>;
   getMaxScrollstopperNumber: (scriptId: string, editorId: string) => number;
+  deleteVideos: (videoIds: string[]) => Promise<void>; // Expose explicitly for unassign
 }
 
 export function useVideosController(): UseVideosControllerResult {
@@ -538,7 +539,7 @@ export function useVideosController(): UseVideosControllerResult {
           throw new Error(editorId ? `Editor not found: ${editorId}` : 'No editors found');
         }
 
-        const FORMATS: VideoFormat[] = ['vertical', 'square', 'youtube'];
+        const FORMATS: VideoFormat[] = ['vertical', 'square', 'YouTube'];
         const TEXT_VERSIONS = [true, false];
 
         // Phase 2: Build all inputs
@@ -558,7 +559,7 @@ export function useVideosController(): UseVideosControllerResult {
 
                 if (!exists) {
                   const formatLabel =
-                    format === 'youtube'
+                    format === 'YouTube'
                       ? 'YouTube'
                       : format.charAt(0).toUpperCase() + format.slice(1);
                   const name = generateVideoName(script.name, formatLabel, editor.name, hasText);
@@ -677,7 +678,7 @@ export function useVideosController(): UseVideosControllerResult {
         const productId = existingVideoForScript.product.id;
         const scriptName = existingVideoForScript.script.name;
 
-        const FORMATS: VideoFormat[] = ['vertical', 'square', 'youtube'];
+        const FORMATS: VideoFormat[] = ['vertical', 'square', 'YouTube'];
         const TEXT_VERSIONS = [true, false];
 
         // Build list of videos to create
@@ -702,7 +703,7 @@ export function useVideosController(): UseVideosControllerResult {
             for (const format of FORMATS) {
               for (const hasText of TEXT_VERSIONS) {
                 const formatLabel =
-                  format === 'youtube'
+                  format === 'YouTube'
                     ? 'YouTube'
                     : format.charAt(0).toUpperCase() + format.slice(1);
 
@@ -769,5 +770,9 @@ export function useVideosController(): UseVideosControllerResult {
     bulkAssignScriptsToEditor,
     requestScrollstoppers,
     getMaxScrollstopperNumber,
+    deleteVideos: async (ids: string[]) => {
+      await deleteVideos(ids);
+      await list.refetch();
+    },
   };
 }

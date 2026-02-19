@@ -55,7 +55,7 @@ import {
   getFbVideoThumbnail,
   updateCampaignStatus,
 } from '../../../../features/campaigns';
-import { useProfilesController } from '../../../../features/profiles';
+import { useProfilesController, useMasterProfile } from '../../../../features/profiles';
 import { fetchRedtrackReport, type RedTrackReportRow } from '../../../../features/redtrack';
 import type { Campaign, FbAdSet, FbAd, FbCreative } from '../../../../features/campaigns';
 import type { CampaignViewTab } from '../../products/composition/types';
@@ -126,9 +126,10 @@ export function CampaignViewPage() {
 
   // Get profiles for access token
   const { profiles, isLoading: profilesLoading } = useProfilesController();
+  const { data: masterProfileRecordId } = useMasterProfile();
 
   // Determine active profile
-  const activeProfileId = overrideProfileId ?? campaign?.launchProfileId;
+  const activeProfileId = overrideProfileId ?? masterProfileRecordId ?? campaign?.launchProfileId;
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
   const accessToken = activeProfile?.permanentToken;
 

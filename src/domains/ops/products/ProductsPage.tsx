@@ -280,6 +280,23 @@ export function ProductsPage() {
     handleBulkAssignScripts([scriptId], editorId);
   };
 
+  const handleUnassignScript = async (scriptId: string) => {
+    // 1. Find all videos for this script
+    const scriptVideos = videosController.list.allRecords.filter(v => v.script.id === scriptId);
+
+    if (scriptVideos.length === 0) {
+      return;
+    }
+
+    // 2. Delete them
+    try {
+      await videosController.deleteVideos(scriptVideos.map(v => v.id));
+    } catch (error) {
+      console.error('Failed to unassign/delete videos:', error);
+      alert(`Failed to unassign videos: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Video status/notes handlers
   const [isUpdatingVideo, setIsUpdatingVideo] = useState(false);
 
@@ -571,7 +588,9 @@ export function ProductsPage() {
             selectedProductId={productIdParam ?? null}
             selectedProductName={selectedProduct?.name ?? null}
             authorOptions={scriptsController.authorOptions}
+
             getNextScriptNumber={scriptsController.getNextScriptNumber}
+            onUnassign={handleUnassignScript}
           />
         )}
         {activeTab === 'videos' && (
