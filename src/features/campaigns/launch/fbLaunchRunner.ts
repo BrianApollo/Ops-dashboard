@@ -130,6 +130,7 @@ export interface FbLaunchController {
   stop: () => void;
   getState: () => FbLaunchState;
   retryFailed: () => void;
+  retryItem: (name: string) => void;
   runPhase: (phase: 'check' | 'upload' | 'campaign' | 'ads' | 'poll') => Promise<FbLaunchState>;
 }
 
@@ -530,8 +531,10 @@ export function createController(
       await createAds();
 
       // 3. Retry failed uploads (items moved back to queued)
+      // CHECK: any queued video means we should try uploading.
+      // This covers both automatic retries and MANUAL retries (where we reset retryCount).
       const hasUploadRetries = state.media.some(
-        m => m.type === 'video' && m.state === 'queued' && m.retryCount > 0
+        m => m.type === 'video' && m.state === 'queued'
       );
       if (hasUploadRetries) {
         await uploadVideos();
@@ -673,6 +676,57 @@ export function createController(
   }
 
   // ---------------------------------------------------------------------------
+  // RETRY SINGLE ITEM
+  // ---------------------------------------------------------------------------
+  function retryItem(name: string): void {
+    const item = state.media.find(m => m.name === name);
+    if (!item) return;
+
+    if (item.state === 'failed') {
+      // RESET for a fresh attempt
+      item.retryCount = 0; // Manual retry acts like a fresh start
+      item.error = null;
+
+      // Reset state based on type and what's missing
+      if (item.type === 'video' && !item.fbVideoId) {
+        item.state = 'queued';
+      } else if (item.type === 'video' && !item.thumbnailUrl) {
+        // Has ID but missing thumbnail -> needs processing poll
+        item.state = 'processing';
+      } else {
+        // Image or Video with ID+Thumb -> needs ad creation
+        item.state = 'ready';
+      }
+
+      // If launch stopped or completed, we might need to restart/resume?
+      // For now, we assume the tick loop is still running or will be restarted.
+      // If "complete" but we retry -> switch to "processing" phase conceptually?
+      if (state.phase === 'complete' || state.phase === 'error') {
+        // If we were "done", but now we have work, we are "running" again conceptually.
+        // The tick loop might have exited. We might need a way to 'wake up' the runner if it stopped.
+        // For this specific architecture, relying on external 'start()' call or existing loop.
+        // Ideally the user clicks "Retry" and if the loop is dead, they might need to click "Launch" again?
+        // OR we just update state and if the loop is running it picks it up.
+        // If loop exited, we can't easily restart it without `start()`.
+        // BUT, `retryFailed` is typically called when "error" or "stopped", so `start()` is likely next.
+        // If we are "running", the loop picks it up.
+      }
+    }
+    emitProgress();
+
+    // If the runner has stopped (e.g. error or complete), restart it to process the retry
+    if (!state.isRunning) {
+      // Don't reset start time if we are just resuming/retrying
+      // But start() resets it. Let's capture it or just let start() do its thing.
+      // If we want to avoid resetting elapsed time, we might need a flag or modify start.
+      // For now, simplicity: just restart. The user cares about the upload working.
+      start().catch(err => {
+        console.error('Retry restart failed:', err);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // RUN SPECIFIC PHASE
   // ---------------------------------------------------------------------------
   async function runPhase(phase: 'check' | 'upload' | 'campaign' | 'ads' | 'poll'): Promise<FbLaunchState> {
@@ -709,6 +763,7 @@ export function createController(
     stop,
     getState,
     retryFailed,
+    retryItem,
     runPhase,
   };
 }

@@ -7,13 +7,13 @@
 
 import { useRef, useMemo } from 'react';
 import { Box, Slide } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import { TreeColumn } from './TreeColumn';
 import { TreeConnections } from './TreeConnections';
 import { DetailsSidebar } from './DetailsSidebar';
 import type {
   InfraData, TreeConnection, TreeFilterState,
   SelectedNode, EntityType, ConnectedByType,
+  InfraProfile,
 } from '../../../../features/infrastructure/types';
 
 interface TreeCanvasProps {
@@ -45,7 +45,8 @@ interface TreeCanvasProps {
   onSyncProfileData: (id: string) => void;
   onGenerateToken: (id: string) => void;
   onPasteToken: (id: string) => void;
-  onToggleItemHidden: (type: string, id: string) => void;
+  onToggleItemHidden: (type: EntityType, id: string) => void;
+  onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
 }
 
 export function TreeCanvas({
@@ -71,8 +72,8 @@ export function TreeCanvas({
   onGenerateToken,
   onPasteToken,
   onToggleItemHidden,
+  onUpdateProfile,
 }: TreeCanvasProps) {
-  const theme = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -276,6 +277,7 @@ export function TreeCanvas({
               onGenerateToken={onGenerateToken}
               onPasteToken={onPasteToken}
               onToggleHidden={onToggleItemHidden}
+              onUpdateProfile={onUpdateProfile}
             />
           )}
         </Box>

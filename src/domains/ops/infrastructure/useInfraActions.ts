@@ -14,7 +14,7 @@ import {
   getInfraRecord,
 } from '../../../features/infrastructure/data';
 import * as fbApi from '../../../features/infrastructure/api';
-import type { InfraData, InfraBM, InfraProfile } from '../../../features/infrastructure/types';
+import type { InfraData, InfraProfile } from '../../../features/infrastructure/types';
 
 // =============================================================================
 // TYPES
@@ -77,16 +77,21 @@ export function useInfraActions(
       const result = await fbApi.validateToken(profile.permanentToken);
 
       const fields: Record<string, unknown> = { [FIELDS.profiles.tokenValid]: result.isValid };
-      if (result.expiresAt) {
-        fields[FIELDS.profiles.permanentTokenEndDate] = result.expiresAt.toISOString().split('T')[0];
+
+      // Prefer data_access_expires_at if available (for long-lived tokens), otherwise standard expiry
+      const expiryDate = result.dataAccessExpiresAt || result.expiresAt;
+
+      if (expiryDate) {
+        fields[FIELDS.profiles.permanentTokenEndDate] = expiryDate.toISOString().split('T')[0];
       }
 
       await updateInfraRecord('profiles', profileId, fields);
       await refetchAll();
 
       if (result.isValid) {
-        const days = result.expiresAt
-          ? Math.ceil((result.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        const expiryDate = result.dataAccessExpiresAt || result.expiresAt;
+        const days = expiryDate
+          ? Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
           : null;
         toast.success(days ? `Token valid (${days}d left)` : 'Token valid (never expires)');
       } else {
@@ -210,7 +215,7 @@ export function useInfraActions(
     }
 
     const FB = FIELDS.bms;
-    const FP = FIELDS.profiles;
+
     const bmName = bm.bmName || 'Business Manager';
     const fbBmId = bm.bmId;
 
@@ -428,7 +433,6 @@ export function useInfraActions(
             if (needsLink) {
               updateFields[FB.linkedProfile] = [...currentLinked, profileId];
               addLog(`  + Linking profile to BM`, false, true);
-              results.bms++;
             } else {
               addLog(`  - Already linked`);
             }
@@ -443,8 +447,8 @@ export function useInfraActions(
             });
             bmRecordId = newBm.id;
             addLog(`  Created new: ${fbBm.name}`, false, true);
-            results.bms++;
           }
+          results.bms++;
 
           bmRecordIdMap[fbBm.id] = bmRecordId;
 
@@ -487,7 +491,6 @@ export function useInfraActions(
 
                 if (needsLink) {
                   updateFields[FA.linkedBm] = [...currentLinked, bmRecordId];
-                  results.adAccounts++;
                 }
 
                 await updateInfraRecord('adaccounts', existing.id, updateFields);
@@ -502,8 +505,8 @@ export function useInfraActions(
                   [FA.linkedBm]: bmRecordId ? [bmRecordId] : [],
                 });
                 addLog(`    + Ad Acc: ${fbAdAcc.name} (created)`, false, true);
-                results.adAccounts++;
               }
+              results.adAccounts++;
             } catch (e) {
               addLog(`    Error: ${e instanceof Error ? e.message : String(e)}`, true);
               results.errors++;
@@ -529,7 +532,6 @@ export function useInfraActions(
 
                 if (needsLink) {
                   updateFields[FX.linkedBms] = [...currentLinked, bmRecordId];
-                  results.pixels++;
                 }
 
                 await updateInfraRecord('pixels', existing.id, updateFields);
@@ -543,8 +545,8 @@ export function useInfraActions(
                   [FX.ownerBm]: bmRecordId ? [bmRecordId] : [],
                 });
                 addLog(`    + Pixel: ${fbPixel.name} (created)`, false, true);
-                results.pixels++;
               }
+              results.pixels++;
             } catch (e) {
               addLog(`    Error: ${e instanceof Error ? e.message : String(e)}`, true);
               results.errors++;
@@ -579,7 +581,6 @@ export function useInfraActions(
             if (needsLink) {
               updateFields[FG.linkedProfiles] = [...currentLinked, profileId];
               addLog(`  + Page: ${fbPage.name} (linking)`, false, true);
-              results.pages++;
             }
 
             await updateInfraRecord('pages', existing.id, updateFields);
@@ -593,8 +594,8 @@ export function useInfraActions(
               [FG.linkedProfiles]: [profileId],
             });
             addLog(`  + Page: ${fbPage.name} (created)`, false, true);
-            results.pages++;
           }
+          results.pages++;
         } catch (e) {
           addLog(`  Error: ${e instanceof Error ? e.message : String(e)}`, true);
           results.errors++;
@@ -664,6 +665,29 @@ export function useInfraActions(
     }
   }, [data, toast, refetchAll]);
 
+  const updateProfileSetup = useCallback(async (profileId: string, updates: Partial<InfraProfile>) => {
+    try {
+      const fieldMap: Partial<Record<keyof InfraProfile, string>> = FIELDS.profiles;
+      const airtableUpdates: Record<string, unknown> = {};
+
+      Object.entries(updates).forEach(([key, value]) => {
+        const fieldName = fieldMap[key as keyof InfraProfile];
+        if (fieldName && value !== '') {
+          airtableUpdates[fieldName] = value;
+        }
+      });
+
+      if (Object.keys(airtableUpdates).length > 0) {
+        await updateInfraRecord('profiles', profileId, airtableUpdates);
+        await refetchAll();
+        toast.success('Profile setup updated');
+      }
+    } catch (err) {
+      toast.error('Failed to update profile: ' + (err instanceof Error ? err.message : String(err)));
+      throw err;
+    }
+  }, [refetchAll, toast]);
+
   return {
     validateProfileToken,
     validateBMToken,
@@ -679,5 +703,6 @@ export function useInfraActions(
     closeSyncDialog,
     syncDialog,
     toggleItemHidden,
+    updateProfileSetup,
   };
 }

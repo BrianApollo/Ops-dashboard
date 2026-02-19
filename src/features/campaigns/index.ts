@@ -34,6 +34,10 @@ export {
   updateCampaignName,
   updateLaunchData,
   saveCampaignDraft,
+  updateCampaignMedia,
+  addImageIdsToCampaign,
+  createCampaign,
+  updateCampaignStatus,
 } from './data';
 
 export type { SaveCampaignDraftParams } from './data';

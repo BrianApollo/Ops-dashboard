@@ -54,16 +54,15 @@ export function OpsLayout() {
   const [collapsed, setCollapsed] = useState(false);
 
   const sidebarWidth = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
-  const isFullBleed = location.pathname.includes('/infrastructure');
 
   // Dynamic navigation items based on role
   const mainNavItems = [
-    ...(user?.role !== 'Video Editor' ? [{ to: '/ops/products', label: 'Products', icon: InventoryIcon }] : []),
+    ...(user?.role !== 'Video Editor' ? [{ to: '/ops', label: 'Products', icon: InventoryIcon }] : []),
   ];
 
   // Check if a nav item is active
   const isActive = (path: string) => {
-    if (path === '/ops/products') {
+    if (path === '/ops') {
       return location.pathname === '/ops' || location.pathname.startsWith('/ops/products');
     }
     return location.pathname.startsWith(path);
@@ -211,8 +210,9 @@ export function OpsLayout() {
           sx={{
             flex: 1,
             p: 3,
-            ...(!isFullBleed && { maxWidth: 1600, mx: 'auto' }),
             width: '100%',
+            maxWidth: location.pathname === '/ops/infrastructure' ? '100%' : 1600,
+            mx: location.pathname === '/ops/infrastructure' ? 0 : 'auto',
           }}
         >
           <Outlet />

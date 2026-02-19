@@ -39,7 +39,6 @@ async function apiCall<T = Record<string, unknown>>(
   params: Record<string, string> = {}
 ): Promise<T> {
   const appSecretProof = await getAppSecretProof(accessToken);
-
   const queryParams = new URLSearchParams({
     access_token: accessToken,
     appsecret_proof: appSecretProof,
@@ -50,9 +49,9 @@ async function apiCall<T = Record<string, unknown>>(
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.error) {
-    throw new Error(data.error.message || 'API call failed');
-  }
+  // if (data.error) {
+  //   throw new Error(data.error.message || 'API call failed');
+  // }
 
   return data as T;
 }
@@ -70,6 +69,7 @@ export function calculateExpiryDate(expiresIn: number): string {
 interface TokenValidation {
   isValid: boolean;
   expiresAt: Date | null;
+  dataAccessExpiresAt: Date | null;
   scopes: string[];
   userId?: string;
   error?: string;
@@ -83,12 +83,13 @@ export async function validateToken(token: string): Promise<TokenValidation> {
   const data = await response.json();
 
   if (data.error || !data.data) {
-    return { isValid: false, expiresAt: null, scopes: [], error: data.error?.message };
+    return { isValid: false, expiresAt: null, dataAccessExpiresAt: null, scopes: [], error: data.error?.message };
   }
 
   return {
     isValid: data.data.is_valid,
     expiresAt: data.data.expires_at ? new Date(data.data.expires_at * 1000) : null,
+    dataAccessExpiresAt: data.data.data_access_expires_at ? new Date(data.data.data_access_expires_at * 1000) : null,
     scopes: data.data.scopes || [],
     userId: data.data.user_id,
   };
@@ -182,31 +183,90 @@ export async function getPages(token: string): Promise<FBPage[]> {
   return response.data || [];
 }
 
+// export async function getBMAdAccounts(
+//   token: string,
+//   bmId: string
+// ): Promise<FBAdAccount[]> {
+//   const response = await apiCall<{ data: FBAdAccount[] }>(
+//     `/${bmId}/owned_ad_accounts`,
+//     token,
+//     {
+//       fields: 'id,name,account_status,currency,amount_spent,timezone_name',
+//       limit: '100',
+//     }
+//   );
+//   return response.data || [];
+// }
+
 export async function getBMAdAccounts(
   token: string,
   bmId: string
 ): Promise<FBAdAccount[]> {
-  const response = await apiCall<{ data: FBAdAccount[] }>(
-    `/${bmId}/owned_ad_accounts`,
-    token,
-    {
-      fields: 'id,name,account_status,currency,amount_spent,timezone_name',
-      limit: '100',
+  const fields = 'id,name,account_status,currency,amount_spent,timezone_name';
+
+  const [ownedResponse, clientResponse] = await Promise.all([
+    apiCall<{ data: FBAdAccount[] }>(
+      `/${bmId}/owned_ad_accounts`,
+      token,
+      { fields, limit: '100' }
+    ),
+    apiCall<{ data: FBAdAccount[] }>(
+      `/${bmId}/client_ad_accounts`,
+      token,
+      { fields, limit: '100' }
+    ).catch(() => ({ data: [] as FBAdAccount[] })),
+  ]);
+
+  const owned = ownedResponse.data || [];
+  const client = clientResponse.data || [];
+
+  // Deduplicate by account ID
+  const seen = new Set(owned.map(a => a.id));
+  const unique = [...owned];
+  for (const acc of client) {
+    if (!seen.has(acc.id)) {
+      unique.push(acc);
+      seen.add(acc.id);
     }
-  );
-  return response.data || [];
+  }
+
+  return unique;
 }
+
 
 export async function getBMPixels(
   token: string,
   bmId: string
 ): Promise<FBPixel[]> {
-  const response = await apiCall<{ data: FBPixel[] }>(
-    `/${bmId}/owned_pixels`,
-    token,
-    { fields: 'id,name,last_fired_time', limit: '100' }
-  );
-  return response.data || [];
+  const fields = 'id,name,last_fired_time';
+
+  const [ownedResponse, clientResponse] = await Promise.all([
+    apiCall<{ data: FBPixel[] }>(
+      `/${bmId}/owned_pixels`,
+      token,
+      { fields, limit: '100' }
+    ),
+    apiCall<{ data: FBPixel[] }>(
+      `/${bmId}/adspixels`,
+      token,
+      { fields, limit: '100' }
+    ).catch(() => ({ data: [] as FBPixel[] })),
+  ]);
+
+  const owned = ownedResponse.data || [];
+  const client = clientResponse.data || [];
+
+  // Deduplicate by pixel ID
+  const seen = new Set(owned.map(p => p.id));
+  const unique = [...owned];
+  for (const pixel of client) {
+    if (!seen.has(pixel.id)) {
+      unique.push(pixel);
+      seen.add(pixel.id);
+    }
+  }
+
+  return unique;
 }
 
 // =============================================================================
@@ -232,7 +292,6 @@ export async function createSystemUser(
   role: string = 'ADMIN'
 ): Promise<{ id: string }> {
   const appSecretProof = await getAppSecretProof(token);
-
   const params = new URLSearchParams({
     name,
     role,
@@ -257,7 +316,6 @@ export async function generateSystemUserAccessToken(
   scopes: string = 'business_management,ads_management,ads_read,pages_read_engagement,pages_manage_metadata'
 ): Promise<{ access_token: string }> {
   const appSecretProof = await getAppSecretProof(adminToken);
-
   const params = new URLSearchParams({
     business_app: FB_APP_ID,
     scope: scopes,

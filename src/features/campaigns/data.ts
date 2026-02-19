@@ -602,6 +602,23 @@ export async function updateLaunchData(params: UpdateLaunchDataParams): Promise<
 }
 
 /**
+ * Update campaign status in Airtable.
+ */
+export async function updateCampaignStatus(
+  campaignId: string,
+  status: CampaignStatus
+): Promise<void> {
+  await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fields: {
+        [FIELD_CAMPAIGN_STATUS]: status,
+      },
+    }),
+  });
+}
+
+/**
  * Update a campaign's used media (videos and images).
  * Maps names to Airtable Record IDs.
  */
@@ -736,6 +753,34 @@ export async function saveCampaignDraft(params: SaveCampaignDraftParams): Promis
   if (draft.launchStatusActive !== undefined) fields[FIELD_LAUNCH_AS_ACTIVE] = draft.launchStatusActive;
 
   if (Object.keys(fields).length === 0) return;
+
+  await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields }),
+  });
+}
+
+/**
+ * Add image IDs to a campaign's "Images Used In This Campaign" field.
+ * Reads existing IDs, merges with new ones, and updates.
+ */
+export async function addImageIdsToCampaign(
+  campaignId: string,
+  newImageIds: string[]
+): Promise<void> {
+  // 1. Fetch current campaign to get existing images
+  // We fetch the raw record to get the current field value accurately
+  const response = await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`);
+  const record: AirtableRecord = await response.json();
+  const existingIds = (record.fields[FIELD_IMAGES_USED] as string[]) || [];
+
+  // 2. Merge unique
+  const mergedIds = Array.from(new Set([...existingIds, ...newImageIds]));
+
+  // 3. Update
+  const fields = {
+    [FIELD_IMAGES_USED]: mergedIds,
+  };
 
   await airtableFetch(`${CAMPAIGNS_TABLE}/${campaignId}`, {
     method: 'PATCH',
