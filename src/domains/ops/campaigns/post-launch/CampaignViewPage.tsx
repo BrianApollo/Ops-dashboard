@@ -53,9 +53,8 @@ import {
   createFbAd,
   getFbVideoStatus,
   getFbVideoThumbnail,
-  updateCampaignStatus,
 } from '../../../../features/campaigns';
-import { useProfilesController, useMasterProfile } from '../../../../features/profiles';
+import { useProfilesController } from '../../../../features/profiles';
 import { fetchRedtrackReport, type RedTrackReportRow } from '../../../../features/redtrack';
 import type { Campaign, FbAdSet, FbAd, FbCreative } from '../../../../features/campaigns';
 import type { CampaignViewTab } from '../../products/composition/types';
@@ -126,10 +125,9 @@ export function CampaignViewPage() {
 
   // Get profiles for access token
   const { profiles, isLoading: profilesLoading } = useProfilesController();
-  const { data: masterProfileRecordId } = useMasterProfile();
 
   // Determine active profile
-  const activeProfileId = overrideProfileId ?? masterProfileRecordId ?? campaign?.launchProfileId;
+  const activeProfileId = overrideProfileId ?? campaign?.launchProfileId;
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
   const accessToken = activeProfile?.permanentToken;
 
@@ -804,7 +802,7 @@ function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
                 <td>{row.conversions}</td>
                 <td>${row.revenue.toFixed(2)}</td>
                 <td>{row.roas.toFixed(2)}</td>
-                <td>{(row.roi * 100).toFixed(2)}%</td>
+                <td>{row.roi.toFixed(1)}%</td>
                 {showExpanded && (
                   <>
                     <td>${row.cpa.toFixed(2)}</td>
@@ -812,8 +810,8 @@ function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
                     <td>${row.epc.toFixed(4)}</td>
                     <td>{row.clicks}</td>
                     <td>{row.lp_clicks}</td>
-                    <td>{(row.lp_ctr * 100).toFixed(2)}%</td>
-                    <td>{(row.cr * 100).toFixed(2)}%</td>
+                    <td>{row.lp_ctr.toFixed(2)}%</td>
+                    <td>{row.cr.toFixed(2)}%</td>
                   </>
                 )}
               </tr>
@@ -883,16 +881,7 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
     setIsUpdating('campaign-status');
     try {
       await updateFbCampaignStatus(campaign.fbCampaignId!, newStatus, accessToken);
-
-      // Sync to Airtable
-      // PAUSED -> Cancelled
-      // ACTIVE -> Launched
-      const airtableStatus = newStatus === 'PAUSED' ? 'Cancelled' : 'Launched';
-      await updateCampaignStatus(campaign.id, airtableStatus);
-
       queryClient.invalidateQueries({ queryKey: ['fb-campaign'] });
-      // Invalidate campaign query to reflect Airtable status change
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] });
     } finally {
       setIsUpdating(null);
     }

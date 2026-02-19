@@ -108,7 +108,6 @@ interface ScriptsTabProps {
   selectedProductName: string | null;
   authorOptions: { value: string; label: string }[];
   getNextScriptNumber: (productId: string) => number;
-  onUnassign?: (scriptId: string) => Promise<void>;
 }
 
 export function ScriptsTab({
@@ -134,15 +133,12 @@ export function ScriptsTab({
   // selectedProductName,
   // authorOptions,
   // getNextScriptNumber,
-  getNextScriptNumber,
-  onUnassign,
 }: ScriptsTabProps) {
   // Presentation state
   const [expandedScript, setExpandedScript] = useState<string | null>(null);
   const [detailScriptId, setDetailScriptId] = useState<string | null>(null);
   const [addHooksDialogOpen, setAddHooksDialogOpen] = useState(false);
   const [scrollstopperDialogOpen, setScrollstopperDialogOpen] = useState(false);
-  const [isUnassigning, setIsUnassigning] = useState<Set<string>>(new Set());
 
   // Assign menu state
   const [assignMenuAnchor, setAssignMenuAnchor] = useState<{ element: HTMLElement; scriptId: string } | null>(null);
@@ -261,24 +257,6 @@ export function ScriptsTab({
     if (!hasVideos) return;
     setExpandedScript(expandedScript === scriptId ? null : scriptId);
   }, [expandedScript]);
-
-  const handleUnassign = useCallback(async (e: React.MouseEvent, scriptId: string) => {
-    e.stopPropagation();
-    if (!onUnassign) return;
-
-    if (confirm('Are you sure you want to unassign and delete all videos for this script? This action cannot be undone.')) {
-      setIsUnassigning(prev => new Set(prev).add(scriptId));
-      try {
-        await onUnassign(scriptId);
-      } finally {
-        setIsUnassigning(prev => {
-          const next = new Set(prev);
-          next.delete(scriptId);
-          return next;
-        });
-      }
-    }
-  }, [onUnassign]);
 
   if (list.allRecords.length === 0) {
     return <EmptyState variant="filter" />;
@@ -450,18 +428,6 @@ export function ScriptsTab({
                               }
                             >
                               {assigningScriptIds.has(script.id) ? 'Assigning...' : 'Assign'}
-                            </Button>
-                          )}
-                          {hasVideos && onUnassign && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
-                              disabled={isUnassigning.has(script.id)}
-                              onClick={(e) => handleUnassign(e, script.id)}
-                              startIcon={isUnassigning.has(script.id) ? <CircularProgress size={16} color="inherit" /> : <CloseIcon />}
-                            >
-                              {isUnassigning.has(script.id) ? 'Unassigning...' : 'Unassign'}
                             </Button>
                           )}
                         </TableCell>
@@ -973,15 +939,6 @@ export function ScriptsTab({
           </MenuItem>
         ))}
       </Menu>
-
-      <VideoDetailPanel
-        open={videoDetail.isOpen}
-        video={videoDetail.detail}
-        onClose={videoDetail.closeDetail}
-        onStatusChange={onVideoStatusChange}
-        onNotesChange={onVideoNotesChange}
-        isUpdating={isUpdatingVideo}
-      />
     </Box>
   );
 }

@@ -184,9 +184,9 @@ export async function uploadVideoWithFolder(options: VideoUploadOptions): Promis
     }
 
     // Validate URL is from the correct domain (trustapollo.media)
-    if (!result.url.includes(import.meta.env.VITE_CF_R2_DOMAIN)) {
+    if (!result.url.includes('trustapollo.media')) {
       throw new Error(
-        `Upload failed: Invalid URL domain. Expected ${import.meta.env.VITE_CF_R2_DOMAIN}, got: ${result.url}`
+        `Upload failed: Invalid URL domain. Expected trustapollo.media, got: ${result.url}`
       );
     }
 

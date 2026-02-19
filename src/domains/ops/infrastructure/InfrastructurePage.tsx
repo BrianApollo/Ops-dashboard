@@ -15,7 +15,6 @@ import { TreeCanvas } from './components/TreeCanvas';
 import { SetTokenDialog } from './dialogs/SetTokenDialog';
 import { GenerateTokenDialog } from './dialogs/GenerateTokenDialog';
 import { SyncProgressDialog } from './dialogs/SyncProgressDialog';
-import { FacebookLoginButton } from './components/FacebookLoginButton';
 
 export function InfrastructurePage() {
   const { data, isLoading, error, refetchAll } = useInfrastructureController();
@@ -49,10 +48,6 @@ export function InfrastructurePage() {
         flexDirection: 'column',
       }}
     >
-      <Box sx={{ px: 3, py: 2, display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid', borderColor: 'divider' }}>
-        <FacebookLoginButton />
-      </Box>
-
       <TreeCanvas
         data={data}
         connections={treeState.connections}
@@ -76,7 +71,6 @@ export function InfrastructurePage() {
         onGenerateToken={actions.generateSystemUserToken}
         onPasteToken={actions.openSetTokenDialog}
         onToggleItemHidden={actions.toggleItemHidden}
-        onUpdateProfile={actions.updateProfileSetup}
       />
 
       {/* Dialogs */}

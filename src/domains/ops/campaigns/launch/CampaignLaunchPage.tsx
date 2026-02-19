@@ -96,7 +96,6 @@ export function CampaignLaunchPage() {
           launchResult={c.launchResult}
           adAccountId={c.draft.adAccountId}
           onBackToProduct={() => navigate(c.productId ? `/ops/products/${c.productId}` : '/ops/products')}
-          onRetryItem={c.retryItem}
         />
       </Box>
     );

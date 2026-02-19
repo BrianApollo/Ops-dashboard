@@ -45,7 +45,7 @@ export interface UsePrelaunchUploaderReturn {
   /** Videos that are ready (in library with thumbnail) */
   libraryMap: Map<string, { fbVideoId: string; thumbnailUrl: string }>;
   /** Check which videos already exist in the library */
-  checkLibrary: () => Promise<Map<string, { fbVideoId: string; thumbnailUrl: string }>>;
+  checkLibrary: () => Promise<void>;
   /** Upload videos to the library */
   uploadVideos: (videoNames: string[]) => Promise<void>;
   /** Upload all videos not in library */
@@ -214,14 +214,14 @@ export function usePrelaunchUploader({
   // CHECK LIBRARY
   // ---------------------------------------------------------------------------
 
-  const checkLibrary = useCallback(async (): Promise<Map<string, { fbVideoId: string; thumbnailUrl: string }>> => {
+  const checkLibrary = useCallback(async () => {
     if (!accessToken || !adAccountId) {
       setError('Please select a profile and ad account first');
-      return new Map();
+      return;
     }
 
     const videoNames = videos.map(v => v.name);
-    if (videoNames.length === 0) return new Map();
+    if (videoNames.length === 0) return;
 
     setIsChecking(true);
     setError(null);
@@ -253,7 +253,6 @@ export function usePrelaunchUploader({
             updateVideoState(item.title, {
               status: 'processing',
               fbVideoId: item.id,
-              thumbnailUrl: item.picture, // Might be available even if processing? Actually usually not until ready, or valid but partial.
             });
           }
         });
@@ -272,12 +271,9 @@ export function usePrelaunchUploader({
           startPolling();
         }
       }, 100);
-
-      return newLibraryMap;
     } catch (err) {
       console.error('Library check failed:', err);
       setError((err as Error).message || 'Failed to check video library');
-      return new Map();
     } finally {
       setIsChecking(false);
     }

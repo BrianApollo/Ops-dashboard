@@ -19,9 +19,7 @@ import { useBulkActions } from '../../core/bulk';
 import { useToast } from '../../core/toast';
 import type { FilterOption } from '../../core/list';
 import type { VideoAsset, VideoFilters, VideoStatus, VideoFormat, VideoSavePayload } from './types';
-import { useQuery } from '@tanstack/react-query';
 import { listVideos, updateVideo, updateVideoStatus, deleteVideos, updateVideoAfterUpload, createVideoBatch, getEditors } from './data';
-import { listUsers } from '../scripts/data';
 import type { CreateVideoInput } from './data';
 import { generateVideoName } from './generateVideoName';
 import { uploadVideoWithFolder, isUploadInProgress } from './drive';
@@ -159,7 +157,6 @@ export interface UseVideosControllerResult {
     count: number;
   }) => Promise<void>;
   getMaxScrollstopperNumber: (scriptId: string, editorId: string) => number;
-  deleteVideos: (videoIds: string[]) => Promise<void>; // Expose explicitly for unassign
 }
 
 export function useVideosController(): UseVideosControllerResult {
@@ -215,20 +212,16 @@ export function useVideosController(): UseVideosControllerResult {
     [list.allRecords]
   );
 
-  // Fetch all users (cached by React Query if used elsewhere)
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: listUsers,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  // Filter to only Video Editors for the dropdown
+  // Derive unique editor options from all records
   const editorOptions = useMemo<FilterOption[]>(() => {
-    return allUsers
-      .filter((u) => u.role === 'Video Editor')
-      .map((u) => ({ value: u.id, label: u.name }))
+    const uniqueEditors = new Map<string, string>();
+    list.allRecords.forEach((v) => {
+      uniqueEditors.set(v.editor.id, v.editor.name);
+    });
+    return Array.from(uniqueEditors.entries())
+      .map(([id, name]) => ({ value: id, label: name }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [allUsers]);
+  }, [list.allRecords]);
 
   // Derive unique product options from all records
   const productOptions = useMemo<FilterOption[]>(() => {
@@ -434,7 +427,7 @@ export function useVideosController(): UseVideosControllerResult {
         // INVARIANT: Only write to Airtable if we have a valid Cloudflare URL
         // This ensures no URL is stored unless the file actually exists in R2
         // =======================================================================
-        if (!result.url || !result.url.includes(import.meta.env.VITE_CF_R2_DOMAIN)) {
+        if (!result.url || !result.url.includes('trustapollo.media')) {
           throw new Error(
             `Upload invariant violated: Invalid or missing URL. Got: ${result.url}`
           );
@@ -539,7 +532,7 @@ export function useVideosController(): UseVideosControllerResult {
           throw new Error(editorId ? `Editor not found: ${editorId}` : 'No editors found');
         }
 
-        const FORMATS: VideoFormat[] = ['vertical', 'square', 'YouTube'];
+        const FORMATS: VideoFormat[] = ['vertical', 'square', 'youtube'];
         const TEXT_VERSIONS = [true, false];
 
         // Phase 2: Build all inputs
@@ -559,7 +552,7 @@ export function useVideosController(): UseVideosControllerResult {
 
                 if (!exists) {
                   const formatLabel =
-                    format === 'YouTube'
+                    format === 'youtube'
                       ? 'YouTube'
                       : format.charAt(0).toUpperCase() + format.slice(1);
                   const name = generateVideoName(script.name, formatLabel, editor.name, hasText);
@@ -678,7 +671,7 @@ export function useVideosController(): UseVideosControllerResult {
         const productId = existingVideoForScript.product.id;
         const scriptName = existingVideoForScript.script.name;
 
-        const FORMATS: VideoFormat[] = ['vertical', 'square', 'YouTube'];
+        const FORMATS: VideoFormat[] = ['vertical', 'square', 'youtube'];
         const TEXT_VERSIONS = [true, false];
 
         // Build list of videos to create
@@ -703,7 +696,7 @@ export function useVideosController(): UseVideosControllerResult {
             for (const format of FORMATS) {
               for (const hasText of TEXT_VERSIONS) {
                 const formatLabel =
-                  format === 'YouTube'
+                  format === 'youtube'
                     ? 'YouTube'
                     : format.charAt(0).toUpperCase() + format.slice(1);
 
@@ -770,9 +763,5 @@ export function useVideosController(): UseVideosControllerResult {
     bulkAssignScriptsToEditor,
     requestScrollstoppers,
     getMaxScrollstopperNumber,
-    deleteVideos: async (ids: string[]) => {
-      await deleteVideos(ids);
-      await list.refetch();
-    },
   };
 }

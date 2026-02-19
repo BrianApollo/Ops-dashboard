@@ -41,9 +41,9 @@ export interface ImageForLaunch {
 
 export interface DraftForLaunch {
   name?: string;
-  adAccountId?: string | null;
-  pageId?: string | null;
-  pixelId?: string | null;
+  adAccountId?: string;
+  pageId?: string;
+  pixelId?: string;
   budget?: string;
   geo?: string;
   startDate?: string;
@@ -51,7 +51,7 @@ export interface DraftForLaunch {
   websiteUrl?: string;
   utms?: string;
   ctaOverride?: string;
-  adPresetId?: string | null;
+  adPresetId?: string;
   primaryTexts?: string[];
   headlines?: string[];
   descriptions?: string[];
@@ -101,8 +101,6 @@ export interface LaunchPipelineResult {
 export interface UseRunLaunchPipelineReturn {
   /** Execute the launch pipeline */
   runLaunch: (input: LaunchPipelineInput) => Promise<LaunchPipelineResult>;
-  /** Retry a single media item by name */
-  retryItem: (name: string) => void;
   /** Whether launch is currently running */
   isLaunching: boolean;
   /** Current progress state from FB runner */
@@ -227,19 +225,19 @@ export function useRunLaunchPipeline(): UseRunLaunchPipelineReturn {
       const fbInput = mapToFbLaunchInput({
         draft: {
           name: draft.name || `Campaign ${campaignId}`,
-          adAccountId: draft.adAccountId!,
-          pageId: draft.pageId!,
-          pixelId: draft.pixelId!,
-          budget: draft.budget || '',
-          geo: draft.geo || '',
-          startDate: draft.startDate || '',
-          startTime: draft.startTime || '',
-          websiteUrl: draft.websiteUrl || '',
+          adAccountId: draft.adAccountId,
+          pageId: draft.pageId,
+          pixelId: draft.pixelId,
+          budget: draft.budget,
+          geo: draft.geo,
+          startDate: draft.startDate,
+          startTime: draft.startTime,
+          websiteUrl: draft.websiteUrl,
           utms: draft.utms || redtrackTrackingParams || '',
-          ctaOverride: draft.ctaOverride || '',
-          primaryTexts: draft.primaryTexts || [],
-          headlines: draft.headlines || [],
-          descriptions: draft.descriptions || [],
+          ctaOverride: draft.ctaOverride,
+          primaryTexts: draft.primaryTexts,
+          headlines: draft.headlines,
+          descriptions: draft.descriptions,
         },
         selectedVideos: videosWithUrls.map(v => ({
           id: v.id,
@@ -297,8 +295,7 @@ export function useRunLaunchPipeline(): UseRunLaunchPipelineReturn {
   // ---------------------------------------------------------------------------
   return {
     runLaunch,
-    retryItem: fbLaunch.retryItem,
-    isLaunching: isLaunching || (fbLaunch.state?.isRunning ?? false),
+    isLaunching,
     launchProgress: fbLaunch.state,
     mediaCounts,
     validationError,

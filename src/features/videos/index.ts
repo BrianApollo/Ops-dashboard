@@ -47,7 +47,6 @@ export {
   createVideoBatch,
   updateVideo,
   updateVideoStatus,
-  updateVideoUsage,
   deleteVideo,
   deleteVideos,
   getEditors,

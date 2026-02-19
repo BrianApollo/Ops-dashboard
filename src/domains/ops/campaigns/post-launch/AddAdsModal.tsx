@@ -22,8 +22,6 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import Switch from '@mui/material/Switch';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import Tooltip from '@mui/material/Tooltip';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -109,7 +107,6 @@ export function AddAdsModal({
   const flow = useAddAdsFlow({
     adSetId,
     templateCreativeId,
-    campaignId: campaignRecord.id,
     productId,
     adAccountId,
     accessToken,
@@ -267,38 +264,17 @@ export function AddAdsModal({
         )}
 
         {/* Status toggle */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={flow.reuseCreatives}
-                onChange={(e) => flow.setReuseCreatives(e.target.checked)}
-                size="small"
-                sx={{ py: 0 }}
-              />
-            }
-            label={
-              <Typography variant="caption" color="text.secondary">
-                Use existing creatives if already in ad account
-              </Typography>
-            }
-            sx={{ m: 0 }}
-          />
-          <FormControlLabel
-            sx={{ marginLeft: 0.5 }}
-            control={
-              <Switch
-                checked={flow.adStatus === 'ACTIVE'}
-                onChange={(e) => flow.setAdStatus(e.target.checked ? 'ACTIVE' : 'PAUSED')}
-                size="small"
-              />
-            }
-            label={
-              <Typography variant="body2" sx={{ fontWeight: 500, marginLeft: 2 }}>
-                Active Immediately
-              </Typography>
-            }
-          />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>Ad Status:</Typography>
+          <ToggleButtonGroup
+            value={flow.adStatus}
+            exclusive
+            onChange={(_, v) => v && flow.setAdStatus(v)}
+            size="small"
+          >
+            <ToggleButton value="ACTIVE">Active</ToggleButton>
+            <ToggleButton value="PAUSED">Paused</ToggleButton>
+          </ToggleButtonGroup>
         </Box>
 
         {/* Progress */}
@@ -349,7 +325,7 @@ export function AddAdsModal({
             <Button
               variant="contained"
               onClick={handleCreate}
-              disabled={flow.isCreating || flow.totalSelectedCount === 0}
+              disabled={!flow.allMediaReady || flow.isCreating || flow.totalSelectedCount === 0}
               startIcon={flow.isCreating ? <CircularProgress size={16} /> : undefined}
             >
               {flow.isCreating

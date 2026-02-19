@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import {
-  Box, Typography, Button, LinearProgress, IconButton, Collapse, Link,
+  Box, Typography, Button, LinearProgress, IconButton, Tooltip, Collapse, Link,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -23,7 +23,6 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { SidebarSection } from './SidebarSection';
-import { SetupInfoDialog } from './SetupInfoDialog';
 import { getStatusBadgeClass } from '../useTreeState';
 import type {
   SelectedNode, InfraData, ConnectedByType, EntityType,
@@ -40,8 +39,7 @@ interface DetailsSidebarProps {
   onSyncProfileData: (id: string) => void;
   onGenerateToken: (id: string) => void;
   onPasteToken: (id: string) => void;
-  onToggleHidden: (type: EntityType, id: string) => void;
-  onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
+  onToggleHidden: (type: keyof typeof import('../../../../features/infrastructure/config').FIELDS, id: string) => void;
 }
 
 function copyToClipboard(text: string) {
@@ -63,8 +61,8 @@ export function DetailsSidebar({
   onGenerateToken,
   onPasteToken,
   onToggleHidden,
-  onUpdateProfile,
 }: DetailsSidebarProps) {
+  const theme = useTheme();
   const { type, id } = selectedNode;
 
   const record = (data[type] as Array<{ id: string }>).find(r => r.id === id);
@@ -80,8 +78,8 @@ export function DetailsSidebar({
         borderColor: 'divider',
       }}
     >
-      {type === 'profiles' && <ProfileSidebar record={record as InfraProfile} connectedByType={connectedByType} onValidate={onValidateProfileToken} onRefresh={onRefreshProfileToken} onSync={onSyncProfileData} onToggleHidden={onToggleHidden} onUpdateProfile={onUpdateProfile} />}
-      {type === 'bms' && <BMSidebar record={record as InfraBM} connectedByType={connectedByType} onValidate={onValidateBMToken} onGenerate={onGenerateToken} onPaste={onPasteToken} onToggleHidden={onToggleHidden} />}
+      {type === 'profiles' && <ProfileSidebar record={record as InfraProfile} connectedByType={connectedByType} onValidate={onValidateProfileToken} onRefresh={onRefreshProfileToken} onSync={onSyncProfileData} onToggleHidden={onToggleHidden} />}
+      {type === 'bms' && <BMSidebar record={record as InfraBM} data={data} connectedByType={connectedByType} onValidate={onValidateBMToken} onGenerate={onGenerateToken} onPaste={onPasteToken} onToggleHidden={onToggleHidden} />}
       {type === 'adaccounts' && <AdAccountSidebar record={record as InfraAdAccount} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
       {type === 'pages' && <PageSidebar record={record as InfraPage} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
       {type === 'pixels' && <PixelSidebar record={record as InfraPixel} connectedByType={connectedByType} onToggleHidden={onToggleHidden} />}
@@ -172,16 +170,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function buildSidebarItems<T extends { id: string }>(
-  items: T[],
-  nameField: keyof T,
-  statusField: keyof T,
+function buildSidebarItems(
+  items: Array<{ id: string; [key: string]: unknown }>,
+  nameField: string,
+  statusField: string,
   badge: string,
 ) {
   return items.map(item => ({
     id: item.id,
-    name: String(item[nameField] || 'Unnamed'),
-    status: String(item[statusField] || 'Unknown'),
+    name: String((item as Record<string, unknown>)[nameField] || 'Unnamed'),
+    status: String((item as Record<string, unknown>)[statusField] || 'Unknown'),
     badge,
   }));
 }
@@ -190,19 +188,19 @@ function ConnectedSections({ connectedByType, excludeType }: { connectedByType: 
   return (
     <>
       {excludeType !== 'profiles' && connectedByType.profiles.length > 0 && (
-        <SidebarSection title="Profiles" icon={<PersonIcon />} items={buildSidebarItems(connectedByType.profiles as InfraProfile[], 'profileName', 'profileStatus', 'PR')} />
+        <SidebarSection title="Profiles" icon={<PersonIcon />} items={buildSidebarItems(connectedByType.profiles, 'profileName', 'profileStatus', 'PR')} />
       )}
       {excludeType !== 'bms' && connectedByType.bms.length > 0 && (
-        <SidebarSection title="Business Managers" icon={<BusinessIcon />} items={buildSidebarItems(connectedByType.bms as InfraBM[], 'bmName', 'bmStatus', 'BM')} />
+        <SidebarSection title="Business Managers" icon={<BusinessIcon />} items={buildSidebarItems(connectedByType.bms, 'bmName', 'bmStatus', 'BM')} />
       )}
       {excludeType !== 'adaccounts' && connectedByType.adaccounts.length > 0 && (
-        <SidebarSection title="Ad Accounts" icon={<AttachMoneyIcon />} items={buildSidebarItems(connectedByType.adaccounts as InfraAdAccount[], 'adAccName', 'adAccStatus', 'AA')} />
+        <SidebarSection title="Ad Accounts" icon={<AttachMoneyIcon />} items={buildSidebarItems(connectedByType.adaccounts, 'adAccName', 'adAccStatus', 'AA')} />
       )}
       {excludeType !== 'pages' && connectedByType.pages.length > 0 && (
-        <SidebarSection title="Pages" icon={<WebIcon />} items={buildSidebarItems(connectedByType.pages as InfraPage[], 'pageName', 'published', 'PG')} />
+        <SidebarSection title="Pages" icon={<WebIcon />} items={buildSidebarItems(connectedByType.pages, 'pageName', 'published', 'PG')} />
       )}
       {excludeType !== 'pixels' && connectedByType.pixels.length > 0 && (
-        <SidebarSection title="Pixels" icon={<GridViewIcon />} items={buildSidebarItems(connectedByType.pixels as InfraPixel[], 'pixelName', 'available', 'PX')} />
+        <SidebarSection title="Pixels" icon={<GridViewIcon />} items={buildSidebarItems(connectedByType.pixels, 'pixelName', 'available', 'PX')} />
       )}
     </>
   );
@@ -212,20 +210,13 @@ function ConnectedSections({ connectedByType, excludeType }: { connectedByType: 
 // PROFILE SIDEBAR
 // =============================================================================
 
-function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync, onToggleHidden, onUpdateProfile }: {
+function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync, onToggleHidden }: {
   record: InfraProfile; connectedByType: ConnectedByType;
   onValidate: (id: string) => void; onRefresh: (id: string) => void; onSync: (id: string) => void;
-  onToggleHidden: (type: EntityType, id: string) => void;
-  onUpdateProfile: (id: string, updates: Partial<InfraProfile>) => Promise<void>;
+  onToggleHidden: (type: string, id: string) => void;
 }) {
   const theme = useTheme();
   const [setupOpen, setSetupOpen] = useState(false);
-  const [setupEditOpen, setSetupEditOpen] = useState(false);
-
-  const handleUpdateProfile = async (id: string, updates: Partial<InfraProfile>) => {
-    await onUpdateProfile(id, updates);
-    setSetupEditOpen(false);
-  };
 
   // Token health
   let healthPercent = 0;
@@ -317,51 +308,31 @@ function ProfileSidebar({ record, connectedByType, onValidate, onRefresh, onSync
       </Box>
 
       {/* Setup Information */}
-      <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
-        <Box
-          sx={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            px: 2, py: 1.5,
-            '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.03) },
-          }}
-        >
+      {setupFields.length > 0 && (
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
           <Box
             onClick={() => setSetupOpen(!setupOpen)}
-            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', flex: 1 }}
+            sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              px: 2, py: 1.5, cursor: 'pointer',
+              '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.03) },
+            }}
           >
-            <SettingsIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>Setup Information</Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); setSetupEditOpen(true); }} sx={{ p: 0.5 }}>
-              <EditIcon sx={{ fontSize: 14 }} />
-            </IconButton>
-            <Box onClick={() => setSetupOpen(!setupOpen)} sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-              <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: setupOpen ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SettingsIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>Setup Information</Typography>
             </Box>
+            <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: setupOpen ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.2s' }} />
           </Box>
-        </Box>
-        <Collapse in={setupOpen}>
-          <Box sx={{ px: 2, pb: 1.5 }}>
-            {setupFields.length > 0 ? (
-              setupFields.map((field, idx) => (
+          <Collapse in={setupOpen}>
+            <Box sx={{ px: 2, pb: 1.5 }}>
+              {setupFields.map((field, idx) => (
                 <SetupRow key={idx} label={field.label} value={field.value} isPassword={field.isPassword} isLink={field.isLink} />
-              ))
-            ) : (
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>No setup details available</Typography>
-            )}
-          </Box>
-        </Collapse>
-      </Box>
-
-      {/* Dialogs */}
-      <SetupInfoDialog
-        open={setupEditOpen}
-        profile={record}
-        onClose={() => setSetupEditOpen(false)}
-        onSave={handleUpdateProfile}
-      />
+              ))}
+            </Box>
+          </Collapse>
+        </Box>
+      )}
 
       <ConnectedSections connectedByType={connectedByType} excludeType="profiles" />
 
@@ -412,11 +383,10 @@ function SetupRow({ label, value, isPassword, isLink }: { label: string; value: 
 // BM SIDEBAR
 // =============================================================================
 
-
-function BMSidebar({ record, connectedByType, onValidate, onGenerate, onPaste, onToggleHidden }: {
-  record: InfraBM; connectedByType: ConnectedByType;
+function BMSidebar({ record, data, connectedByType, onValidate, onGenerate, onPaste, onToggleHidden }: {
+  record: InfraBM; data: InfraData; connectedByType: ConnectedByType;
   onValidate: (id: string) => void; onGenerate: (id: string) => void; onPaste: (id: string) => void;
-  onToggleHidden: (type: EntityType, id: string) => void;
+  onToggleHidden: (type: string, id: string) => void;
 }) {
   const theme = useTheme();
   const hasToken = !!record.systemUserToken;
@@ -500,7 +470,7 @@ function BMSidebar({ record, connectedByType, onValidate, onGenerate, onPaste, o
 
 function AdAccountSidebar({ record, connectedByType, onToggleHidden }: {
   record: InfraAdAccount; connectedByType: ConnectedByType;
-  onToggleHidden: (type: EntityType, id: string) => void;
+  onToggleHidden: (type: string, id: string) => void;
 }) {
   const theme = useTheme();
 
@@ -539,7 +509,7 @@ function AdAccountSidebar({ record, connectedByType, onToggleHidden }: {
 
 function PageSidebar({ record, connectedByType, onToggleHidden }: {
   record: InfraPage; connectedByType: ConnectedByType;
-  onToggleHidden: (type: EntityType, id: string) => void;
+  onToggleHidden: (type: string, id: string) => void;
 }) {
   return (
     <Box>
@@ -580,7 +550,7 @@ function PageSidebar({ record, connectedByType, onToggleHidden }: {
 
 function PixelSidebar({ record, connectedByType, onToggleHidden }: {
   record: InfraPixel; connectedByType: ConnectedByType;
-  onToggleHidden: (type: EntityType, id: string) => void;
+  onToggleHidden: (type: string, id: string) => void;
 }) {
   return (
     <Box>

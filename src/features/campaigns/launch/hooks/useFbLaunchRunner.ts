@@ -54,9 +54,6 @@ export interface UseFbLaunchRunnerReturn {
   /** Retry all failed media items */
   retryFailed: () => void;
 
-  /** Retry a single media item by name */
-  retryItem: (name: string) => void;
-
   /** Reset state for a new launch */
   reset: () => void;
 
@@ -144,12 +141,6 @@ export function useFbLaunchRunner(): UseFbLaunchRunnerReturn {
     }
   }, []);
 
-  const retryItem = useCallback((name: string) => {
-    if (controllerRef.current) {
-      controllerRef.current.retryItem(name);
-    }
-  }, []);
-
   // ---------------------------------------------------------------------------
   // RESET
   // ---------------------------------------------------------------------------
@@ -184,7 +175,6 @@ export function useFbLaunchRunner(): UseFbLaunchRunnerReturn {
     launch,
     stop,
     retryFailed,
-    retryItem,
     reset,
     getState,
   };

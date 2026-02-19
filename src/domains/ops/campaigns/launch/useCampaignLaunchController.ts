@@ -115,7 +115,6 @@ export interface UseCampaignLaunchControllerReturn {
 
   // Actions
   launch: () => Promise<void>;
-  retryItem: (name: string) => void;
 
   // Auto-save status
   saveStatus: 'idle' | 'pending' | 'saving' | 'saved' | 'error';
@@ -267,7 +266,7 @@ export function useCampaignLaunchController(
       prelaunchUploader.reset();
       prevAdAccountId.current = draft.adAccountId;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.adAccountId]);
 
   // ---------------------------------------------------------------------------
@@ -382,7 +381,7 @@ export function useCampaignLaunchController(
       }));
       lastAppliedPresetId.current = draft.adPresetId;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.adPresetId, productPresets]);
 
   // ---------------------------------------------------------------------------
@@ -411,7 +410,6 @@ export function useCampaignLaunchController(
     mediaCounts,
     launchProgress,
     launch,
-    retryItem,
   } = useLaunchExecution({
     campaignId,
     draft,
@@ -515,7 +513,6 @@ export function useCampaignLaunchController(
 
     // Actions
     launch,
-    retryItem,
 
     // Auto-save status
     saveStatus,

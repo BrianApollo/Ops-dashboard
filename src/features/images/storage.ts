@@ -123,9 +123,9 @@ export async function uploadImageToStorage(
     throw new Error('Upload failed: No file key returned from storage worker');
   }
 
-  if (!result.url.includes(import.meta.env.VITE_CF_R2_DOMAIN)) {
+  if (!result.url.includes('trustapollo.media')) {
     throw new Error(
-      `Upload failed: Invalid URL domain. Expected ${import.meta.env.VITE_CF_R2_DOMAIN}, got: ${result.url}`
+      `Upload failed: Invalid URL domain. Expected trustapollo.media, got: ${result.url}`
     );
   }
 
