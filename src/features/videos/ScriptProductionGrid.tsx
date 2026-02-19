@@ -346,7 +346,7 @@ export function ScriptProductionGrid({
   );
 
   // System font stack (matches MUI theme)
-  const fontFamily = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const fontFamily = '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
   if (paginatedCards.length === 0) {
     return (

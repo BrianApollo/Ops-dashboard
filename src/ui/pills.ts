@@ -34,7 +34,7 @@ export interface PillStyle {
  */
 export const basePillStyle: CSSProperties = {
   display: 'inline-block',
-  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   fontSize: 10,
   fontWeight: 500,
   letterSpacing: '0.01em',

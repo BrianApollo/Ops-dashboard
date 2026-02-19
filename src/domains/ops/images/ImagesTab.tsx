@@ -62,7 +62,7 @@ export function ImagesTab({
 
   const list = useListController<ImageItem, ImageFilters>({
     records: images,
-    initialFilters: { usage: null },
+    initialFilters: { usage: 'available' },
     filterFn: (records, filters) => {
       if (!filters.usage) return records.filter((i) => i.status !== 'new');
       if (filters.usage === 'new') {

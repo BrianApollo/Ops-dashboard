@@ -1,6 +1,8 @@
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import { useTheme, alpha } from '@mui/material/styles';
+import type { ReactNode } from 'react';
 
 interface StatusCardGridProps {
   children: React.ReactNode;
@@ -24,6 +26,7 @@ interface StatusCardProps {
   active?: boolean;
   onClick?: () => void;
   size?: 'default' | 'compact';
+  icon?: ReactNode;
 }
 
 export function StatusCard({
@@ -33,7 +36,9 @@ export function StatusCard({
   active = false,
   onClick,
   size = 'default',
+  icon,
 }: StatusCardProps) {
+  const theme = useTheme();
   const isCompact = size === 'compact';
   const isClickable = !!onClick;
 
@@ -52,7 +57,10 @@ export function StatusCard({
         alignItems: isCompact ? 'center' : 'flex-start',
         justifyContent: isCompact ? 'space-between' : 'center',
         gap: isCompact ? 1.5 : 0,
-        bgcolor: active ? 'primary.main' : 'background.paper',
+        position: 'relative',
+        bgcolor: active
+          ? 'primary.main'
+          : alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.03),
         color: active ? 'primary.contrastText' : 'text.primary',
         borderRadius: 2,
         transition: 'all 0.15s ease-in-out',
@@ -60,14 +68,34 @@ export function StatusCard({
         minWidth: isCompact ? 100 : 'auto',
         ...(isClickable && {
           '&:hover': {
-            bgcolor: active ? 'primary.dark' : 'action.hover',
+            bgcolor: active
+              ? 'primary.dark'
+              : alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.06),
             borderColor: active ? 'primary.dark' : 'primary.main',
             boxShadow: active ? 3 : 1,
           },
         }),
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isCompact ? 'flex-start' : 'flex-start' }}>
+      {/* Subtle icon watermark in background */}
+      {icon && !isCompact && (
+        <Box
+          sx={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            opacity: active ? 0.15 : 0.07,
+            fontSize: 40,
+            display: 'flex',
+            color: active ? 'primary.contrastText' : 'primary.main',
+            pointerEvents: 'none',
+          }}
+        >
+          {icon}
+        </Box>
+      )}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
         <Typography
           variant="body2"
           noWrap

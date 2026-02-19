@@ -103,7 +103,7 @@ export function VideosTab({
 
   const list = useListController<VideoAsset, VideoFilters>({
     records: videos,
-    initialFilters: { status: null },
+    initialFilters: { status: 'available' },
     initialPageSize: 20,
     filterFn: (records, filters) =>
       filters.status ? records.filter((v) => v.status === filters.status) : records,

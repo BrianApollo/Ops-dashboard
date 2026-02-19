@@ -41,7 +41,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   // Status filtering and search using useListController
   const list = useListController<CampaignItem, CampaignFilters>({
     records: campaigns,
-    initialFilters: { status: null },
+    initialFilters: { status: 'Launched' },
     initialPageSize: 20,
     filterFn: (records, filters) => {
       if (!filters.status) return records;
@@ -154,6 +154,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
                             e.stopPropagation();
                             handleLaunch(campaign.productId, campaign.id);
                           }}
+                          sx={{ borderRadius: 5, px: 2, minWidth: 0, textTransform: 'none', fontSize: '0.8125rem' }}
                         >
                           Launch
                         </Button>
@@ -165,6 +166,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
                             e.stopPropagation();
                             handleView(campaign.productId, campaign.id);
                           }}
+                          sx={{ borderRadius: 5, px: 2, minWidth: 0, textTransform: 'none', fontSize: '0.8125rem' }}
                         >
                           View
                         </Button>

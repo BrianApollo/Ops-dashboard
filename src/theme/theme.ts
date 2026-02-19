@@ -60,7 +60,7 @@ const lightPalette = {
   error: { main: errorMain, light: errorLight, dark: errorDark },
   info: { main: infoMain, light: infoLight, dark: infoDark },
   background: {
-    default: '#F8FAFC',
+    default: '#FFFFFF',
     paper: '#FFFFFF',
   },
   divider: 'rgba(0, 0, 0, 0.08)',

@@ -208,7 +208,7 @@ export function ScriptsTab({
   // List controller for filtering and search
   const list = useListController<ScriptItem, ScriptFilters>({
     records: scripts,
-    initialFilters: { assignment: null },
+    initialFilters: { assignment: 'assigned' },
     initialPageSize: 20,
     filterFn: (records, filters) => {
       if (!filters.assignment) return records;

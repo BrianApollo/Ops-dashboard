@@ -120,13 +120,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <Alert
             severity={t.severity}
             onClose={handleClose(t.id)}
-            variant="filled"
+            variant="outlined"
             action={t.action}
             sx={{
               width: '100%',
               minWidth: 300,
               maxWidth: 450,
               boxShadow: 3,
+              bgcolor: 'background.paper',
+              borderLeft: 4,
+              borderLeftStyle: 'solid',
+              borderLeftColor: `${t.severity}.main`,
               '& .MuiAlert-message': {
                 flex: 1,
               },
