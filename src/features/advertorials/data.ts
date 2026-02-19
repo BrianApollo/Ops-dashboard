@@ -1,19 +1,5 @@
-import { throttledAirtableFetch } from '../../core/data/airtable-throttle';
+import { airtableFetch } from '../../core/data/airtable-client';
 import type { Advertorial } from './types';
-
-// =============================================================================
-// CONFIG
-// =============================================================================
-
-const AIRTABLE_API_KEY = import.meta.env.VITE_AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-
-const config = {
-    apiKey: AIRTABLE_API_KEY,
-    baseId: AIRTABLE_BASE_ID,
-};
-
-const AIRTABLE_API_URL = `https://api.airtable.com/v0/${config.baseId}`;
 
 // =============================================================================
 // TABLE & FIELD NAMES
@@ -80,25 +66,6 @@ function mapAirtableToAdvertorial(
     };
 }
 
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-async function airtableFetch(endpoint: string): Promise<Response> {
-    const response = await throttledAirtableFetch(`${AIRTABLE_API_URL}/${endpoint}`, {
-        headers: {
-            Authorization: `Bearer ${config.apiKey}`,
-            'Content-Type': 'application/json',
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
-    }
-
-    return response;
-}
-
 let productsCache: Map<string, { id: string; name: string }> | null = null;
 
 async function fetchProducts(): Promise<Map<string, { id: string; name: string }>> {
@@ -159,12 +126,8 @@ export async function createAdvertorial(
     if (text) fields[FIELD_TEXT] = text;
     if (link) fields[FIELD_LINK] = link;
 
-    const response = await throttledAirtableFetch(`${AIRTABLE_API_URL}/${ADVERTORIALS_TABLE}`, {
+    const response = await airtableFetch(ADVERTORIALS_TABLE, {
         method: 'POST',
-        headers: {
-            Authorization: `Bearer ${config.apiKey}`,
-            'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ fields }),
     });
 
@@ -190,12 +153,8 @@ export async function updateAdvertorial(id: string, fields: Partial<Advertorial>
         airtableFields[FIELD_LINK] = fields.link;
     }
 
-    const response = await throttledAirtableFetch(`${AIRTABLE_API_URL}/${ADVERTORIALS_TABLE}/${id}`, {
+    const response = await airtableFetch(`${ADVERTORIALS_TABLE}/${id}`, {
         method: 'PATCH',
-        headers: {
-            Authorization: `Bearer ${config.apiKey}`,
-            'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ fields: airtableFields }),
     });
 

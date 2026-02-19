@@ -34,7 +34,8 @@ import { extractTrackingParams } from './parseUtms';
 // CONFIGURATION
 // =============================================================================
 
-const DEFAULT_BASE_URL = 'https://api.redtrack.io/v1';
+// Routes through server-side proxy at /api/redtrack/ — API key injected server-side
+const DEFAULT_BASE_URL = '/api/redtrack/v1';
 
 // =============================================================================
 // ERROR HANDLING
@@ -83,7 +84,7 @@ async function rtFetch<T>(
     method: options.method,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`,
+      'X-Redtrack-Auth-Mode': 'bearer',
     },
   };
 
@@ -283,18 +284,19 @@ export async function getBatchCampaignStats(
 // FETCH OPERATIONS (using query param auth per API docs)
 // =============================================================================
 
-const REDTRACK_API_URL = 'https://api.redtrack.io';
+// Routes through server-side proxy — API key injected server-side
+const REDTRACK_API_URL = '/api/redtrack';
 
 /**
  * Fetch helper using api_key query parameter.
  */
 async function rtApiFetch<T>(
-  apiKey: string,
+  _apiKey: string,
   endpoint: string,
   params?: Record<string, string>
 ): Promise<T> {
-  const url = new URL(`${REDTRACK_API_URL}${endpoint}`);
-  url.searchParams.set('api_key', apiKey);
+  // API key is now injected server-side by the proxy
+  const url = new URL(`${REDTRACK_API_URL}${endpoint}`, window.location.origin);
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -514,11 +516,11 @@ export async function fetchRedtrackCampaignDetails(
  * @param params - Report parameters
  */
 export async function fetchRedtrackReport(
-  apiKey: string,
+  _apiKey: string,
   params: RedTrackReportParams
 ): Promise<RedTrackReportRow[]> {
-  const url = new URL(`${REDTRACK_API_URL}/report`);
-  url.searchParams.set('api_key', apiKey);
+  // API key is now injected server-side by the proxy
+  const url = new URL(`${REDTRACK_API_URL}/report`, window.location.origin);
   url.searchParams.set('campaign_id', params.campaignId);
   url.searchParams.set('date_from', params.dateFrom);
   url.searchParams.set('date_to', params.dateTo);

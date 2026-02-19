@@ -51,8 +51,7 @@ export const textXs: SxProps<Theme> = {
 export const statNumber: SxProps<Theme> = {
   fontSize: '1.5rem',    // 24px
   fontWeight: 700,
-  lineHeight: 1.1,
-  letterSpacing: '-0.02em',
+  lineHeight: 1.2,
 };
 
 // =============================================================================

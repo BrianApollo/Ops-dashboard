@@ -5,7 +5,7 @@
  * Uses throttled fetch and maps Airtable fields to typed interfaces.
  */
 
-import { throttledAirtableFetch } from '../../core/data/airtable-throttle';
+import { airtableFetch } from '../../core/data/airtable-client';
 import { TABLES, FIELDS } from './config';
 import type {
   InfraProfile,
@@ -14,30 +14,6 @@ import type {
   InfraPage,
   InfraPixel,
 } from './types';
-
-// =============================================================================
-// AIRTABLE CONFIG
-// =============================================================================
-
-const AIRTABLE_API_KEY = import.meta.env.VITE_AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-
-function validateConfig(): { apiKey: string; baseId: string } {
-  const missing: string[] = [];
-  if (!AIRTABLE_API_KEY) missing.push('VITE_AIRTABLE_API_KEY');
-  if (!AIRTABLE_BASE_ID) missing.push('VITE_AIRTABLE_BASE_ID');
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Infrastructure config error: Missing env var(s): ${missing.join(', ')}`
-    );
-  }
-
-  return { apiKey: AIRTABLE_API_KEY as string, baseId: AIRTABLE_BASE_ID as string };
-}
-
-const config = validateConfig();
-const BASE_URL = `https://api.airtable.com/v0/${config.baseId}`;
 
 // =============================================================================
 // HELPERS
@@ -53,30 +29,6 @@ interface AirtableResponse {
   offset?: string;
 }
 
-async function airtableFetch(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const response = await throttledAirtableFetch(`${BASE_URL}/${endpoint}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    let msg = `Airtable API error: ${response.status}`;
-    try {
-      const err = await response.json();
-      if (err.error) msg = `Airtable error (${err.error.type}): ${err.error.message}`;
-    } catch { /* use default */ }
-    throw new Error(msg);
-  }
-
-  return response;
-}
 
 function getLinkedIds(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');

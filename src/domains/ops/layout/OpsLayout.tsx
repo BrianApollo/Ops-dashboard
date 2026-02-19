@@ -107,85 +107,53 @@ export function OpsLayout() {
             borderColor: 'divider',
           }}
         >
-          {collapsed ? (
-            <Box
-              onClick={() => setCollapsed(false)}
-              sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 1,
-                bgcolor: theme.palette.primary.main,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.875rem',
-                letterSpacing: '-0.02em',
-                cursor: 'pointer',
-                transition: 'opacity 0.15s ease',
-                '&:hover': { opacity: 0.85 },
-              }}
-            >
-              M
-            </Box>
-          ) : (
-            <>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 1,
-                    bgcolor: theme.palette.primary.main,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: '0.8125rem',
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  M
-                </Box>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: '0.9375rem',
-                    color: 'text.primary',
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  Media Ops
-                </Typography>
-              </Box>
-              <IconButton
-                onClick={() => setCollapsed(!collapsed)}
-                size="small"
+          {!collapsed && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
                 sx={{
-                  color: 'text.secondary',
-                  '&:hover': { bgcolor: 'action.hover' },
+                  width: 32,
+                  height: 32,
+                  borderRadius: 1.5,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
                 }}
               >
-                <ChevronLeftIcon fontSize="small" />
-              </IconButton>
-            </>
+                M
+              </Box>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                Media Ops
+              </Typography>
+            </Box>
           )}
+          <IconButton
+            onClick={() => setCollapsed(!collapsed)}
+            size="small"
+            sx={{
+              color: 'text.secondary',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            {collapsed ? <MenuIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+          </IconButton>
         </Box>
 
         {/* Main Navigation */}
-        <Box
-          sx={{
-            flex: 1,
-            py: 2,
-            px: collapsed ? 2 : 1.5,
-            overflowY: 'auto',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 8px, black calc(100% - 8px), transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8px, black calc(100% - 8px), transparent 100%)',
-          }}
-        >
+        <Box sx={{ flex: 1, py: 2, px: collapsed ? 2 : 1.5 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {mainNavItems.map((item) => (
               <NavItem

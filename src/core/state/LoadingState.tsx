@@ -23,7 +23,7 @@ const sizeMap = {
 };
 
 export function LoadingState({
-  variant = 'skeleton',
+  variant = 'spinner',
   message,
   size = 'medium',
   skeletonRows = 3,
@@ -58,8 +58,7 @@ export function LoadingState({
             key={index}
             variant="rectangular"
             height={skeletonHeight}
-            animation="wave"
-            sx={{ mb: 1, borderRadius: 1.5 }}
+            sx={{ mb: 1, borderRadius: 1 }}
           />
         ))}
         {children}

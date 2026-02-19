@@ -11,42 +11,7 @@
  */
 
 import type { VideoAsset, VideoStatus, VideoFormat } from './types';
-import { throttledAirtableFetch } from '../../core/data/airtable-throttle';
-
-// =============================================================================
-// AIRTABLE CONFIG
-// =============================================================================
-
-const AIRTABLE_API_KEY = import.meta.env.VITE_AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-
-// Validate configuration once at module load
-function validateConfig(): { apiKey: string; baseId: string } {
-  const missing: string[] = [];
-
-  if (!AIRTABLE_API_KEY) {
-    missing.push('VITE_AIRTABLE_API_KEY');
-  }
-  if (!AIRTABLE_BASE_ID) {
-    missing.push('VITE_AIRTABLE_BASE_ID');
-  }
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Airtable configuration error: Missing environment variable(s): ${missing.join(', ')}. ` +
-      `Add them to your .env file.`
-    );
-  }
-
-  return {
-    apiKey: AIRTABLE_API_KEY as string,
-    baseId: AIRTABLE_BASE_ID as string,
-  };
-}
-
-// Validate once, cache result
-const config = validateConfig();
-const AIRTABLE_API_URL = `https://api.airtable.com/v0/${config.baseId}`;
+import { airtableFetch } from '../../core/data/airtable-client';
 
 // Table names
 const VIDEOS_TABLE = 'Videos';
@@ -109,42 +74,6 @@ interface AirtableResponse {
   offset?: string;
 }
 
-async function airtableFetch(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const response = await throttledAirtableFetch(`${AIRTABLE_API_URL}/${endpoint}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    // Parse error details from Airtable response
-    let errorMessage = `Airtable API error: ${response.status} ${response.statusText}`;
-    try {
-      const errorData = await response.json();
-      if (errorData.error) {
-        const errType = errorData.error.type || 'UNKNOWN_ERROR';
-        const errMsg = errorData.error.message || '';
-        errorMessage = `Airtable error (${errType}): ${errMsg}`;
-
-        // Special handling for 422 (invalid field) errors
-        if (response.status === 422) {
-          errorMessage = `Airtable field error: ${errMsg}. Check that all field names exist in your Airtable base.`;
-        }
-      }
-    } catch {
-      // If we can't parse JSON, use the default message
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response;
-}
 
 // =============================================================================
 // MAPPER (single source of truth for Airtable → domain conversion)

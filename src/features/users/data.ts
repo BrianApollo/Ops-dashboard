@@ -1,117 +1,58 @@
 /**
  * Data abstraction layer for Users.
+ *
+ * Authentication is now handled server-side at /api/auth/login.
+ * The Airtable API key and password verification never reach the browser.
  */
 
-import { User } from './types.ts';
-import { throttledAirtableFetch } from '../../core/data/airtable-throttle';
+import type { User } from './types.ts';
 
 // =============================================================================
-// AIRTABLE CONFIG
+// AUTH OPERATIONS (via server-side proxy)
 // =============================================================================
 
-const AIRTABLE_API_KEY = import.meta.env.VITE_AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-
-function validateConfig(): { apiKey: string; baseId: string } {
-    const missing: string[] = [];
-
-    if (!AIRTABLE_API_KEY) {
-        missing.push('VITE_AIRTABLE_API_KEY');
-    }
-    if (!AIRTABLE_BASE_ID) {
-        missing.push('VITE_AIRTABLE_BASE_ID');
-    }
-
-    if (missing.length > 0) {
-        throw new Error(
-            `Airtable configuration error: Missing environment variable(s): ${missing.join(', ')}. ` +
-            `Add them to your .env file.`
-        );
-    }
-
-    return {
-        apiKey: AIRTABLE_API_KEY as string,
-        baseId: AIRTABLE_BASE_ID as string,
-    };
-}
-
-const config = validateConfig();
-const AIRTABLE_API_URL = `https://api.airtable.com/v0/${config.baseId}`;
-
-// =============================================================================
-// TABLE & FIELD NAMES
-// =============================================================================
-
-const USERS_TABLE = 'Users';
-
-// Field names (exact Airtable names)
-const FIELD_EMAIL = 'Email';
-const FIELD_PASSWORD = 'Password';
-const FIELD_ROLE = 'Role';
-
-// =============================================================================
-// AIRTABLE HELPERS
-// =============================================================================
-
-async function airtableFetch(
-    endpoint: string,
-    options: RequestInit = {}
-): Promise<Response> {
-    const response = await throttledAirtableFetch(`${AIRTABLE_API_URL}/${endpoint}`, {
-        ...options,
-        headers: {
-            Authorization: `Bearer ${config.apiKey}`,
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
+/**
+ * Verify credentials via the server-side login endpoint.
+ * The Airtable API key and password comparison happen server-side.
+ * Returns user + JWT token on success.
+ */
+export async function verifyCredentials(
+  email: string,
+  password: string
+): Promise<{ user: User; token: string } | null> {
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
 
     if (!response.ok) {
-        throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
+      return null;
     }
 
-    return response;
+    const data = await response.json() as { user: User; token: string };
+    return data;
+  } catch (error) {
+    console.error('Error verifying credentials:', error);
+    return null;
+  }
 }
 
-// =============================================================================
-// AUTH OPERATIONS
-// =============================================================================
+/**
+ * Restore session from JWT token via the server-side /api/auth/me endpoint.
+ */
+export async function restoreSession(token: string): Promise<User | null> {
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-export async function verifyCredentials(email: string, password: string): Promise<User | null> {
-    // Escape quotes in formula
-    const safeEmail = email.replace(/'/g, "\\'");
-    // We filter by Email first
-    const formula = `{${FIELD_EMAIL}} = '${safeEmail}'`;
-    const url = `${USERS_TABLE}?filterByFormula=${encodeURIComponent(formula)}`;
+    if (!response.ok) return null;
 
-    try {
-        const response = await airtableFetch(url);
-        const data = await response.json();
-
-        if (data.records && data.records.length > 0) {
-            // Find record with matching password
-            // Note: In production we should HASH passwords. This is a simple implementation as requested.
-            const userRecord = data.records.find((record: any) => record.fields[FIELD_PASSWORD] === password);
-
-            if (userRecord) {
-                const rawRole = userRecord.fields[FIELD_ROLE];
-                let role = '';
-                if (Array.isArray(rawRole)) {
-                    role = rawRole[0] || '';
-                } else if (typeof rawRole === 'string') {
-                    role = rawRole;
-                }
-
-                return {
-                    id: userRecord.id,
-                    email: userRecord.fields[FIELD_EMAIL],
-                    role: role.trim(),
-                };
-            }
-        }
-        return null;
-    } catch (error) {
-        console.error("Error verifying credentials:", error);
-        return null;
-    }
+    const data = await response.json() as { user: User };
+    return data.user;
+  } catch {
+    return null;
+  }
 }

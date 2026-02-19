@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Box, Button, Container, TextField, Typography, Paper, Alert } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../../core/auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 import { useToast } from '../../core/toast';
 
 const LoginPage = () => {
+    const theme = useTheme();
     const { login, isLoading } = useAuth();
     const navigate = useNavigate();
     const toast = useToast();
@@ -89,7 +91,15 @@ const LoginPage = () => {
                         fullWidth
                         variant="contained"
                         disabled={isLoading}
-                        sx={{ mt: 3, mb: 2, py: 1.25 }}
+                        sx={{
+                            mt: 3,
+                            mb: 2,
+                            bgcolor: theme.palette.primary.main,
+                            color: 'white',
+                            '&:hover': {
+                                bgcolor: theme.palette.primary.dark,
+                            },
+                        }}
                     >
                         {isLoading ? 'Logging in...' : 'Login'}
                     </Button>

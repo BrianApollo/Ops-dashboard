@@ -14,7 +14,6 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
-import ButtonBase from '@mui/material/ButtonBase';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import FormControl from '@mui/material/FormControl';
@@ -26,24 +25,16 @@ import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import Checkbox from '@mui/material/Checkbox';
 import Collapse from '@mui/material/Collapse';
-import Divider from '@mui/material/Divider';
 import LinearProgress from '@mui/material/LinearProgress';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import { useTheme, alpha, type Theme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-// FolderIcon removed - no longer used in redesigned layout
+import FolderIcon from '@mui/icons-material/Folder';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AddIcon from '@mui/icons-material/Add';
@@ -70,61 +61,48 @@ import type { Campaign, FbAdSet, FbAd, FbCreative } from '../../../../features/c
 import type { CampaignViewTab } from '../../products/composition/types';
 import { AddAdsModal } from './AddAdsModal';
 
-// RedTrack API key from environment
-const REDTRACK_API_KEY = import.meta.env.VITE_REDTRACK_API_KEY as string | undefined;
+// API key is now injected server-side by the proxy — this is a placeholder
+const REDTRACK_API_KEY = 'proxy-managed' as string | undefined;
 
 // =============================================================================
 // STYLES
 // =============================================================================
 
-const createStyles = (theme: Theme) => {
-  const isDark = theme.palette.mode === 'dark';
-  return {
-    statusPill: (isActive: boolean) => ({
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 0.75,
-      px: 1.5,
-      py: 0.5,
-      borderRadius: '20px',
-      bgcolor: isActive
-        ? alpha(theme.palette.success.main, isDark ? 0.15 : 0.08)
-        : isDark ? alpha(theme.palette.common.white, 0.06) : 'grey.100',
-      border: '1px solid',
-      borderColor: isActive
-        ? alpha(theme.palette.success.main, isDark ? 0.3 : 0.25)
-        : isDark ? alpha(theme.palette.common.white, 0.1) : 'grey.300',
-      cursor: 'pointer',
-      transition: 'all 0.15s ease',
-      '&:hover': {
-        bgcolor: isActive
-          ? alpha(theme.palette.success.main, isDark ? 0.2 : 0.14)
-          : isDark ? alpha(theme.palette.common.white, 0.1) : 'grey.200',
-      },
-    }),
-    statusDot: (isActive: boolean) => ({
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      bgcolor: isActive ? 'success.main' : 'grey.400',
-    }),
-    adCard: (isSelected: boolean) => ({
-      p: 1.5,
-      borderRadius: 1.5,
-      border: '1px solid',
-      borderColor: isSelected
-        ? 'primary.main'
-        : isDark ? alpha(theme.palette.common.white, 0.08) : 'divider',
-      bgcolor: isSelected
-        ? alpha(theme.palette.primary.main, isDark ? 0.1 : 0.04)
-        : 'background.paper',
-      transition: 'all 0.15s ease',
-      '&:hover': {
-        borderColor: isSelected ? 'primary.main' : isDark ? alpha(theme.palette.common.white, 0.15) : 'grey.400',
-        boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
-      },
-    }),
-  };
+const styles = {
+  statusPill: (isActive: boolean) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 1,
+    px: 1.5,
+    py: 0.5,
+    borderRadius: '20px',
+    bgcolor: isActive ? 'success.50' : 'grey.100',
+    border: '1px solid',
+    borderColor: isActive ? 'success.200' : 'grey.300',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    '&:hover': {
+      bgcolor: isActive ? 'success.100' : 'grey.200',
+    },
+  }),
+  statusDot: (isActive: boolean) => ({
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    bgcolor: isActive ? 'success.main' : 'grey.400',
+  }),
+  adCard: (isSelected: boolean) => ({
+    p: 1.5,
+    borderRadius: 1,
+    border: '2px solid',
+    borderColor: isSelected ? 'primary.main' : 'grey.200',
+    bgcolor: isSelected ? 'primary.50' : 'background.paper',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    '&:hover': {
+      borderColor: isSelected ? 'primary.main' : 'grey.400',
+    },
+  }),
 };
 
 // =============================================================================
@@ -283,21 +261,20 @@ export function CampaignViewPage() {
 }
 
 // =============================================================================
-// LAUNCH DATA TAB (Read-only) — Redesigned Layout
+// LAUNCH DATA TAB (Read-only)
 // =============================================================================
-
-type ContentSection = 'utms' | 'texts' | 'headlines' | 'descriptions';
 
 interface LaunchDataTabProps {
   campaign: Campaign;
 }
 
 function LaunchDataTab({ campaign }: LaunchDataTabProps) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const [activeSection, setActiveSection] = useState<ContentSection>('utms');
+  const [showUtms, setShowUtms] = useState(false);
+  const [showPrimaryTexts, setShowPrimaryTexts] = useState(false);
+  const [showHeadlines, setShowHeadlines] = useState(false);
+  const [showDescriptions, setShowDescriptions] = useState(false);
+  const [showReferenceIds, setShowReferenceIds] = useState(false);
   const [showAdIds, setShowAdIds] = useState(false);
-  const [showRefs, setShowRefs] = useState(false);
 
   // Parse launched data JSON
   let snapshot: import('../../../../features/campaigns/launch/types').LaunchSnapshot | null = null;
@@ -321,52 +298,20 @@ function LaunchDataTab({ campaign }: LaunchDataTabProps) {
 
   // Determine result status
   const resultStatus = result.success ? 'success' : result.partialSuccess ? 'partial' : 'failed';
+  const resultColor = resultStatus === 'success' ? 'success.50' : resultStatus === 'partial' ? 'warning.50' : 'error.50';
+  const resultBorderColor = resultStatus === 'success' ? 'success.200' : resultStatus === 'partial' ? 'warning.200' : 'error.200';
   const chipColor = resultStatus === 'success' ? 'success' : resultStatus === 'partial' ? 'warning' : 'error';
   const chipLabel = resultStatus === 'success' ? 'Success' : resultStatus === 'partial' ? 'Partial' : 'Failed';
 
   const allFailed = [...media.videos.failed, ...media.images.failed];
 
-  // Build content sections for the accordion
-  const contentSections: { key: ContentSection; label: string; count?: number }[] = [];
-  if (config.utms) contentSections.push({ key: 'utms', label: 'UTMs' });
-  if (adPreset?.primaryTexts?.length) contentSections.push({ key: 'texts', label: 'Primary Texts', count: adPreset.primaryTexts.length });
-  if (adPreset?.headlines?.length) contentSections.push({ key: 'headlines', label: 'Headlines', count: adPreset.headlines.length });
-  if (adPreset?.descriptions?.length) contentSections.push({ key: 'descriptions', label: 'Descriptions', count: adPreset.descriptions.length });
-
-  // Striped row styling
-  const stripedRow = (index: number) => ({
-    display: 'flex',
-    gap: 2,
-    px: 2,
-    py: 1,
-    bgcolor: index % 2 === 0 ? 'transparent' : (isDark ? alpha(theme.palette.common.white, 0.02) : alpha(theme.palette.common.black, 0.015)),
-  });
-
-  const sectionHeader = {
-    display: 'block',
-    px: 2,
-    py: 1,
-    color: '#fff',
-    bgcolor: theme.palette.primary.main,
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.06em',
-    fontWeight: 600,
-  };
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* 1. Result Banner */}
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 2,
-          borderLeft: 4,
-          borderLeftColor: `${chipColor}.main`,
-        }}
-      >
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* 1. Launch Result Banner */}
+      <Paper sx={{ p: 3, bgcolor: resultColor, border: '1px solid', borderColor: resultBorderColor }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <Chip label={chipLabel} color={chipColor as 'success' | 'warning' | 'error'} size="small" />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
             {result.adsCreated}/{result.adsAttempted} ads created
           </Typography>
           {profile.name && (
@@ -379,7 +324,7 @@ function LaunchDataTab({ campaign }: LaunchDataTabProps) {
           </Typography>
         </Box>
         {result.errors.length > 0 && (
-          <Box sx={{ mt: 1.5 }}>
+          <Box sx={{ mt: 2 }}>
             {result.errors.map((err, i) => (
               <Typography key={i} variant="caption" color="error.main" sx={{ display: 'block' }}>
                 {err.mediaName}: {err.message} ({err.stage})
@@ -389,281 +334,285 @@ function LaunchDataTab({ campaign }: LaunchDataTabProps) {
         )}
       </Paper>
 
-      {/* 2. Two-column grid: Campaign & Ad Set (left) + Ad Settings (right) */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
-        {/* Left Column — Campaign + Ad Set */}
-        <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-          <Typography variant="caption" sx={sectionHeader}>Campaign</Typography>
-          {[
-            ['Name', config.campaignName],
-            ['Budget', `$${(config.budgetCents / 100).toFixed(2)}/day`],
-            ['Status', config.launchStatus],
-            ['Campaign ID', facebook.campaignId || 'N/A'],
-          ].map(([label, value], i) => (
-            <Box key={label} sx={stripedRow(i)}>
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120, maxWidth: 120, flexShrink: 0 }}>{label}</Typography>
-              {label === 'Status' ? (
-                <Chip label={value} color={value === 'ACTIVE' ? 'success' : 'default'} size="small" />
-              ) : (
-                <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>{value}</Typography>
-              )}
+      {/* 2. Campaign */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Campaign</Typography>
+        <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap', mb: 2 }}>
+          <InfoBox label="Name" value={config.campaignName} />
+          <InfoBox label="Budget" value={`$${(config.budgetCents / 100).toFixed(2)}/day`} />
+          <InfoBox
+            label="Status"
+            value={
+              <Chip
+                label={config.launchStatus}
+                color={config.launchStatus === 'ACTIVE' ? 'success' : 'default'}
+                size="small"
+              />
+            }
+          />
+        </Box>
+        <InfoRow label="Campaign ID" value={facebook.campaignId || 'N/A'} />
+      </Paper>
+
+      {/* 3. Ad Set */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Ad Set</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <InfoRow label="Ad Set ID" value={facebook.adSetId || 'N/A'} />
+          <InfoRow label="Targeting" value={config.geo.length > 0 ? config.geo.join(', ') : 'N/A'} />
+          <InfoRow label="Pixel ID" value={facebook.pixelId || 'N/A'} />
+          <InfoRow label="Start Date" value={config.startDate || 'N/A'} />
+          <InfoRow label="Start Time" value={config.startTime || 'N/A'} />
+          <InfoRow label="Website URL" value={config.websiteUrl || 'N/A'} />
+        </Box>
+      </Paper>
+
+      {/* 4. Ad Settings */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Ad Settings</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <InfoRow label="Preset" value={adPreset?.name || 'N/A'} />
+          <InfoRow label="CTA" value={adPreset?.callToAction || config.ctaOverride || 'N/A'} />
+          <InfoRow label="Display Link" value={config.displayLink || 'N/A'} />
+        </Box>
+
+        {/* UTMs */}
+        {config.utms && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowUtms(!showUtms)}
+            >
+              {showUtms ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>UTMs</Typography>
             </Box>
-          ))}
-          <Divider />
-          <Typography variant="caption" sx={sectionHeader}>Ad Set</Typography>
-          {[
-            ['Ad Set ID', facebook.adSetId || 'N/A'],
-            ['Targeting', config.geo.length > 0 ? config.geo.join(', ') : 'N/A'],
-            ['Pixel ID', facebook.pixelId || 'N/A'],
-            ['Start Date', config.startDate || 'N/A'],
-            ['Start Time', config.startTime || 'N/A'],
-            ['Website URL', config.websiteUrl || 'N/A'],
-          ].map(([label, value], i) => (
-            <Box key={label} sx={stripedRow(i)}>
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120, maxWidth: 120, flexShrink: 0 }}>{label}</Typography>
-              <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>{value}</Typography>
+            <Collapse in={showUtms}>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 1, pl: 3, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {config.utms}
+              </Typography>
+            </Collapse>
+          </Box>
+        )}
+
+        {/* Primary Texts */}
+        {adPreset?.primaryTexts && adPreset.primaryTexts.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowPrimaryTexts(!showPrimaryTexts)}
+            >
+              {showPrimaryTexts ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Primary Texts ({adPreset.primaryTexts.length})
+              </Typography>
             </Box>
-          ))}
-        </Paper>
-
-        {/* Right Column — Ad Settings */}
-        <Paper variant="outlined" sx={{ overflow: 'hidden', alignSelf: 'start' }}>
-          <Typography variant="caption" sx={sectionHeader}>Ad Settings</Typography>
-          {[
-            ['Preset', adPreset?.name || 'N/A'],
-            ['CTA', adPreset?.callToAction || config.ctaOverride || 'N/A'],
-            ['Display Link', config.displayLink || 'N/A'],
-          ].map(([label, value], i) => (
-            <Box key={label} sx={stripedRow(i)}>
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120, maxWidth: 120, flexShrink: 0 }}>{label}</Typography>
-              <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>{value}</Typography>
-            </Box>
-          ))}
-
-          {/* Content Section Tabs */}
-          {contentSections.length > 0 && (
-            <>
-              <Divider />
-              <Box sx={{ display: 'inline-flex', gap: '2px', p: '3px', bgcolor: isDark ? alpha(theme.palette.common.white, 0.06) : alpha(theme.palette.common.black, 0.04), borderRadius: '8px', mx: 2, my: 1.5 }}>
-                {contentSections.map((section) => {
-                  const isActive = activeSection === section.key;
-                  return (
-                    <ButtonBase
-                      key={section.key}
-                      onClick={() => { if (!isActive) setActiveSection(section.key); }}
-                      sx={{
-                        px: 1.5,
-                        py: 0.5,
-                        minHeight: 30,
-                        borderRadius: '6px',
-                        fontWeight: isActive ? 600 : 500,
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease',
-                        ...(isActive ? {
-                          bgcolor: theme.palette.primary.main,
-                          color: '#fff',
-                          boxShadow: `0 1px 3px ${alpha(theme.palette.primary.main, 0.3)}`,
-                        } : {
-                          bgcolor: 'transparent',
-                          color: 'text.secondary',
-                          '&:hover': {
-                            bgcolor: isDark
-                              ? alpha(theme.palette.common.white, 0.06)
-                              : alpha(theme.palette.primary.main, 0.04),
-                            color: isDark ? 'text.primary' : theme.palette.primary.main,
-                          },
-                        }),
-                      }}
-                    >
-                      {section.label}{section.count !== undefined ? ` (${section.count})` : ''}
-                    </ButtonBase>
-                  );
-                })}
-              </Box>
-
-              {/* Active Section Content */}
-              <Collapse in>
-                <Box sx={{ p: 2, maxHeight: 300, overflow: 'auto' }}>
-                  {activeSection === 'utms' && config.utms && (
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                      {config.utms}
-                    </Typography>
-                  )}
-                  {activeSection === 'texts' && adPreset?.primaryTexts?.map((text, i) => (
-                    <Typography key={i} variant="body2" sx={{ mb: 1.5 }}>
-                      <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary', mr: 1 }}>{i + 1}.</Box>
-                      {text}
-                    </Typography>
-                  ))}
-                  {activeSection === 'headlines' && adPreset?.headlines?.map((text, i) => (
-                    <Typography key={i} variant="body2" sx={{ mb: 0.75 }}>
-                      <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary', mr: 1 }}>{i + 1}.</Box>
-                      {text}
-                    </Typography>
-                  ))}
-                  {activeSection === 'descriptions' && adPreset?.descriptions?.map((text, i) => (
-                    <Typography key={i} variant="body2" sx={{ mb: 0.75 }}>
-                      <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary', mr: 1 }}>{i + 1}.</Box>
-                      {text}
-                    </Typography>
-                  ))}
-                </Box>
-              </Collapse>
-            </>
-          )}
-        </Paper>
-      </Box>
-
-      {/* 3. Creatives */}
-      {(media.videos.succeeded.length > 0 || media.images.succeeded.length > 0 || allFailed.length > 0) && (
-        <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-          <Typography variant="caption" sx={sectionHeader}>
-            Creatives
-          </Typography>
-          <Box sx={{ p: 2 }}>
-            {/* Side-by-side Videos + Images */}
-            <Box sx={{
-              display: 'grid',
-              gridTemplateColumns: (media.videos.succeeded.length > 0 && media.images.succeeded.length > 0) ? { xs: '1fr', md: '1fr 1fr' } : '1fr',
-              gap: 3,
-            }}>
-              {/* Videos */}
-              {media.videos.succeeded.length > 0 && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-                    Videos ({media.videos.succeeded.length})
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {media.videos.succeeded.map((v) => (
-                      <Typography key={v.localId} variant="body2" sx={{ py: 0.25 }}>
-                        {v.name}
-                      </Typography>
-                    ))}
-                  </Box>
-                </Box>
-              )}
-
-              {/* Images */}
-              {media.images.succeeded.length > 0 && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-                    Images ({media.images.succeeded.length})
-                  </Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 1.5 }}>
-                    {media.images.succeeded.map((img) => (
-                      <Box key={img.localId} sx={{ textAlign: 'center' }}>
-                        <MediaThumb src={img.imageUrl} alt={img.name} fallbackLabel="No preview" isDark={isDark} />
-                        <Typography variant="caption" noWrap sx={{ display: 'block', mt: 0.5, px: 0.5 }}>{img.name}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-              )}
-            </Box>
-
-            {/* Failed Media */}
-            {allFailed.length > 0 && (
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: isDark ? alpha(theme.palette.error.main, 0.08) : alpha(theme.palette.error.main, 0.04), borderRadius: 1.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: 'error.main', display: 'block', mb: 0.5 }}>
-                  Failed ({allFailed.length})
-                </Typography>
-                {allFailed.map((f, i) => (
-                  <Typography key={i} variant="caption" color="error.main" sx={{ display: 'block' }}>
-                    {f.name} — {f.error} ({f.failedAt})
+            <Collapse in={showPrimaryTexts}>
+              <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {adPreset.primaryTexts.map((text, i) => (
+                  <Typography key={i} variant="body2">
+                    {i + 1}. {text}
                   </Typography>
                 ))}
               </Box>
-            )}
-
-            {media.videos.succeeded.length === 0 && media.images.succeeded.length === 0 && allFailed.length === 0 && (
-              <Typography color="text.secondary" variant="body2">No media data recorded.</Typography>
-            )}
+            </Collapse>
           </Box>
-        </Paper>
-      )}
+        )}
 
-      {/* 4. Reference IDs — Compact collapsible footer */}
-      <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-        <Box
-          onClick={() => setShowRefs(!showRefs)}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            px: 2,
-            py: 1,
-            cursor: 'pointer',
-            bgcolor: theme.palette.primary.main,
-            color: '#fff',
-            '&:hover': { bgcolor: theme.palette.primary.dark },
-          }}
-        >
-          {showRefs ? <ExpandMoreIcon sx={{ fontSize: 18, color: '#fff' }} /> : <ChevronRightIcon sx={{ fontSize: 18, color: '#fff' }} />}
-          <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, color: '#fff' }}>
-            Reference IDs
-          </Typography>
-          {!showRefs && (
-            <Box sx={{ display: 'flex', gap: 1, ml: 1, flexWrap: 'wrap' }}>
-              {[
-                facebook.campaignId && `Campaign: ${facebook.campaignId}`,
-                facebook.adSetId && `Ad Set: ${facebook.adSetId}`,
-              ].filter(Boolean).map((text, i) => (
-                <Chip key={i} label={text} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6875rem', color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.3)' }} />
+        {/* Headlines */}
+        {adPreset?.headlines && adPreset.headlines.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowHeadlines(!showHeadlines)}
+            >
+              {showHeadlines ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Headlines ({adPreset.headlines.length})
+              </Typography>
+            </Box>
+            <Collapse in={showHeadlines}>
+              <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {adPreset.headlines.map((text, i) => (
+                  <Typography key={i} variant="body2">
+                    {i + 1}. {text}
+                  </Typography>
+                ))}
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+
+        {/* Descriptions */}
+        {adPreset?.descriptions && adPreset.descriptions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setShowDescriptions(!showDescriptions)}
+            >
+              {showDescriptions ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Descriptions ({adPreset.descriptions.length})
+              </Typography>
+            </Box>
+            <Collapse in={showDescriptions}>
+              <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {adPreset.descriptions.map((text, i) => (
+                  <Typography key={i} variant="body2">
+                    {i + 1}. {text}
+                  </Typography>
+                ))}
+              </Box>
+            </Collapse>
+          </Box>
+        )}
+      </Paper>
+
+      {/* 5. Creatives */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Creatives</Typography>
+
+        {/* Videos */}
+        {media.videos.succeeded.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+              Videos ({media.videos.succeeded.length})
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {media.videos.succeeded.map((v) => (
+                <Paper key={v.localId} variant="outlined" sx={{ p: 1.5, width: 140, textAlign: 'center' }}>
+                  {v.thumbnailUrl ? (
+                    <Box
+                      component="img"
+                      src={v.thumbnailUrl}
+                      alt={v.name}
+                      sx={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 1, mb: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: 80,
+                        bgcolor: 'grey.100',
+                        borderRadius: 1,
+                        mb: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">No thumbnail</Typography>
+                    </Box>
+                  )}
+                  <Typography variant="caption" noWrap sx={{ display: 'block' }}>{v.name}</Typography>
+                </Paper>
               ))}
             </Box>
-          )}
-        </Box>
-        <Collapse in={showRefs}>
-          <Divider />
-          {[
-            ['Ad Account', facebook.adAccountId],
-            ['Page', facebook.pageId],
-            ['Pixel', facebook.pixelId],
-            ['Campaign ID', facebook.campaignId],
-            ['Ad Set ID', facebook.adSetId],
-            ['RedTrack ID', snapshot.redtrack?.campaignId],
-            ['Profile ID', profile.id],
-          ].map(([label, value], i) => (
-            <Box key={label} sx={stripedRow(i)}>
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120, maxWidth: 120, flexShrink: 0 }}>{label}</Typography>
-              <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>{value || 'N/A'}</Typography>
-            </Box>
-          ))}
+          </Box>
+        )}
 
-          {/* Ad IDs */}
-          {facebook.adIds.length > 0 && (
-            <>
-              <Divider />
-              <Box
-                onClick={() => setShowAdIds(!showAdIds)}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  px: 2,
-                  py: 1,
-                  cursor: 'pointer',
-                  bgcolor: theme.palette.primary.main,
-                  color: '#fff',
-                  '&:hover': { bgcolor: theme.palette.primary.dark },
-                }}
-              >
-                {showAdIds ? <ExpandMoreIcon sx={{ fontSize: 16, color: '#fff' }} /> : <ChevronRightIcon sx={{ fontSize: 16, color: '#fff' }} />}
-                <Typography variant="caption" sx={{ fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#fff' }}>
-                  Ad IDs ({facebook.adIds.length})
+        {/* Images */}
+        {media.images.succeeded.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+              Images ({media.images.succeeded.length})
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {media.images.succeeded.map((img) => (
+                <Paper key={img.localId} variant="outlined" sx={{ p: 1.5, width: 140, textAlign: 'center' }}>
+                  {img.imageUrl ? (
+                    <Box
+                      component="img"
+                      src={img.imageUrl}
+                      alt={img.name}
+                      sx={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 1, mb: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: 80,
+                        bgcolor: 'grey.100',
+                        borderRadius: 1,
+                        mb: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">No preview</Typography>
+                    </Box>
+                  )}
+                  <Typography variant="caption" noWrap sx={{ display: 'block' }}>{img.name}</Typography>
+                </Paper>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Failed Media */}
+        {allFailed.length > 0 && (
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 1, color: 'error.main' }}>
+              Failed ({allFailed.length})
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {allFailed.map((f, i) => (
+                <Typography key={i} variant="caption" color="error.main">
+                  {f.name} — {f.error} ({f.failedAt})
                 </Typography>
-              </Box>
-              <Collapse in={showAdIds}>
-                <Box sx={{ px: 2, pb: 1.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                  {facebook.adIds.map((adId, i) => (
-                    <Typography key={i} variant="body2" color="text.secondary">
-                      {adId}
-                    </Typography>
-                  ))}
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {media.videos.succeeded.length === 0 && media.images.succeeded.length === 0 && allFailed.length === 0 && (
+          <Typography color="text.secondary">No media data recorded.</Typography>
+        )}
+      </Paper>
+
+      {/* 6. Reference IDs */}
+      <Paper sx={{ p: 3 }}>
+        <Box
+          sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setShowReferenceIds(!showReferenceIds)}
+        >
+          {showReferenceIds ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Reference IDs</Typography>
+        </Box>
+        <Collapse in={showReferenceIds}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+            <InfoRow label="Ad Account" value={facebook.adAccountId || 'N/A'} />
+            <InfoRow label="Page" value={facebook.pageId || 'N/A'} />
+            <InfoRow label="Pixel" value={facebook.pixelId || 'N/A'} />
+            <InfoRow label="Campaign ID" value={facebook.campaignId || 'N/A'} />
+            <InfoRow label="Ad Set ID" value={facebook.adSetId || 'N/A'} />
+            <InfoRow label="RedTrack ID" value={snapshot.redtrack?.campaignId || 'N/A'} />
+            <InfoRow label="Profile ID" value={profile.id || 'N/A'} />
+
+            {/* Ad IDs */}
+            {facebook.adIds.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                  onClick={() => setShowAdIds(!showAdIds)}
+                >
+                  {showAdIds ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    Ad IDs ({facebook.adIds.length})
+                  </Typography>
                 </Box>
-              </Collapse>
-            </>
-          )}
+                <Collapse in={showAdIds}>
+                  <Box sx={{ pl: 3, mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {facebook.adIds.map((adId, i) => (
+                      <Typography key={i} variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {adId}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Collapse>
+              </Box>
+            )}
+          </Box>
         </Collapse>
       </Paper>
     </Box>
@@ -679,7 +628,6 @@ interface RedTrackDataTabProps {
 }
 
 function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
-  const theme = useTheme();
   const [showExpanded, setShowExpanded] = useState(false);
 
   // Use React Query for data fetching - handles caching and deduplication
@@ -775,29 +723,19 @@ function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Summary Cards */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Total Cost</Typography>
-          <Typography variant="h5">${totals.cost.toFixed(2)}</Typography>
-        </Paper>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Purchases</Typography>
-          <Typography variant="h5">{totals.conversions}</Typography>
-        </Paper>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Revenue</Typography>
-          <Typography variant="h5">${totals.revenue.toFixed(2)}</Typography>
-        </Paper>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>ROAS</Typography>
-          <Typography variant="h5">{totalRoas.toFixed(2)}</Typography>
-        </Paper>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>ROI</Typography>
-          <Typography variant="h5">{totalRoi.toFixed(1)}%</Typography>
-        </Paper>
-      </Box>
+      {/* Summary Card */}
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          Last 30 Days Summary
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <InfoBox label="Total Cost" value={`$${totals.cost.toFixed(2)}`} />
+          <InfoBox label="Purchases" value={totals.conversions.toString()} />
+          <InfoBox label="Revenue" value={`$${totals.revenue.toFixed(2)}`} />
+          <InfoBox label="ROAS" value={totalRoas.toFixed(2)} />
+          <InfoBox label="ROI" value={`${totalRoi.toFixed(1)}%`} />
+        </Box>
+      </Paper>
 
       {/* Expand/Collapse Button */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -811,54 +749,77 @@ function RedTrackDataTab({ redtrackCampaignId }: RedTrackDataTabProps) {
       </Box>
 
       {/* Data Table */}
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead sx={{ '& .MuiTableCell-head': { bgcolor: theme.palette.primary.main, color: '#fff' } }}>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell align="right">Cost</TableCell>
-              <TableCell align="right">Purchase</TableCell>
-              <TableCell align="right">Revenue</TableCell>
-              <TableCell align="right">ROAS</TableCell>
-              <TableCell align="right">ROI</TableCell>
+      <Paper sx={{ overflow: 'auto' }}>
+        <Box
+          component="table"
+          sx={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            '& th, & td': {
+              px: 1.5,
+              py: 1,
+              textAlign: 'right',
+              borderBottom: '1px solid',
+              borderColor: 'grey.200',
+              whiteSpace: 'nowrap',
+            },
+            '& th': {
+              fontWeight: 600,
+              bgcolor: 'grey.50',
+              position: 'sticky',
+              top: 0,
+            },
+            '& th:first-of-type, & td:first-of-type': {
+              textAlign: 'left',
+            },
+          }}
+        >
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Cost</th>
+              <th>Purchase</th>
+              <th>Revenue</th>
+              <th>ROAS</th>
+              <th>ROI</th>
               {showExpanded && (
                 <>
-                  <TableCell align="right">CPA</TableCell>
-                  <TableCell align="right">AOV</TableCell>
-                  <TableCell align="right">EPC</TableCell>
-                  <TableCell align="right">Clicks</TableCell>
-                  <TableCell align="right">LP Clicks</TableCell>
-                  <TableCell align="right">LP CTR</TableCell>
-                  <TableCell align="right">CR</TableCell>
+                  <th>CPA</th>
+                  <th>AOV</th>
+                  <th>EPC</th>
+                  <th>Clicks</th>
+                  <th>LP Clicks</th>
+                  <th>LP CTR</th>
+                  <th>CR</th>
                 </>
               )}
-            </TableRow>
-          </TableHead>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody>
             {data.map((row, index) => (
-              <TableRow key={row.date || index}>
-                <TableCell>{row.date || '-'}</TableCell>
-                <TableCell align="right">${row.cost.toFixed(2)}</TableCell>
-                <TableCell align="right">{row.conversions}</TableCell>
-                <TableCell align="right">${row.revenue.toFixed(2)}</TableCell>
-                <TableCell align="right">{row.roas.toFixed(2)}</TableCell>
-                <TableCell align="right">{(row.roi * 100).toFixed(2)}%</TableCell>
+              <tr key={row.date || index}>
+                <td>{row.date || '-'}</td>
+                <td>${row.cost.toFixed(2)}</td>
+                <td>{row.conversions}</td>
+                <td>${row.revenue.toFixed(2)}</td>
+                <td>{row.roas.toFixed(2)}</td>
+                <td>{(row.roi * 100).toFixed(2)}%</td>
                 {showExpanded && (
                   <>
-                    <TableCell align="right">${row.cpa.toFixed(2)}</TableCell>
-                    <TableCell align="right">${row.aov.toFixed(2)}</TableCell>
-                    <TableCell align="right">${row.epc.toFixed(4)}</TableCell>
-                    <TableCell align="right">{row.clicks}</TableCell>
-                    <TableCell align="right">{row.lp_clicks}</TableCell>
-                    <TableCell align="right">{(row.lp_ctr * 100).toFixed(2)}%</TableCell>
-                    <TableCell align="right">{(row.cr * 100).toFixed(2)}%</TableCell>
+                    <td>${row.cpa.toFixed(2)}</td>
+                    <td>${row.aov.toFixed(2)}</td>
+                    <td>${row.epc.toFixed(4)}</td>
+                    <td>{row.clicks}</td>
+                    <td>{row.lp_clicks}</td>
+                    <td>{(row.lp_ctr * 100).toFixed(2)}%</td>
+                    <td>{(row.cr * 100).toFixed(2)}%</td>
                   </>
                 )}
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+          </tbody>
+        </Box>
+      </Paper>
     </Box>
   );
 }
@@ -875,9 +836,6 @@ interface ManageTabProps {
 }
 
 function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProps) {
-  const theme = useTheme();
-  const styles = createStyles(theme);
-  const isDark = theme.palette.mode === 'dark';
   const queryClient = useQueryClient();
 
   // Local UI state
@@ -1044,28 +1002,12 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
 
   const selectedAdsList = ads.filter((ad) => selectedAds.has(ad.id));
 
-  // Count active/paused ads per ad set for quick summary
-  const activeAdCount = ads.filter((ad) => ad.status === 'ACTIVE').length;
-  const pausedAdCount = ads.filter((ad) => ad.status === 'PAUSED').length;
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Bulk Actions Bar */}
       {selectedAds.size > 0 && (
-        <Paper
-          elevation={0}
-          sx={{
-            p: 2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.12 : 0.06),
-            border: '1px solid',
-            borderColor: alpha(theme.palette.primary.main, isDark ? 0.25 : 0.2),
-            borderRadius: 2,
-          }}
-        >
-          <Typography variant="body2" sx={{ flex: 1, fontWeight: 500 }}>
+        <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.200' }}>
+          <Typography sx={{ flex: 1 }}>
             <strong>{selectedAds.size}</strong> ad{selectedAds.size > 1 ? 's' : ''} selected
           </Typography>
           <Button variant="outlined" size="small" onClick={() => setSelectedAds(new Set())}>
@@ -1077,82 +1019,17 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
         </Paper>
       )}
 
-      {/* Campaign Card - visually distinct as the parent level */}
-      <Paper
-        elevation={0}
-        sx={{
-          overflow: 'hidden',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 2,
-        }}
-      >
-        <Box
-          sx={{
-            px: 2.5,
-            py: 2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3,
-            borderLeft: '3px solid',
-            borderLeftColor: fbCampaign.status === 'ACTIVE' ? 'success.main' : 'grey.400',
-          }}
-        >
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>
-              {fbCampaign.name}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                {adSets.length} ad set{adSets.length !== 1 ? 's' : ''}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {ads.length} ad{ads.length !== 1 ? 's' : ''}
-              </Typography>
-              {activeAdCount > 0 && (
-                <Chip
-                  label={`${activeAdCount} active`}
-                  size="small"
-                  sx={{
-                    height: 20,
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    bgcolor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.08),
-                    color: 'success.main',
-                  }}
-                />
-              )}
-              {pausedAdCount > 0 && (
-                <Chip
-                  label={`${pausedAdCount} paused`}
-                  size="small"
-                  sx={{
-                    height: 20,
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    bgcolor: isDark ? alpha(theme.palette.common.white, 0.06) : 'grey.100',
-                    color: 'text.secondary',
-                  }}
-                />
-              )}
-            </Box>
+      {/* Campaign Row */}
+      <Paper sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{fbCampaign.name}</Typography>
+            <Typography variant="caption" color="text.secondary">Campaign</Typography>
           </Box>
 
           {/* Budget Input */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-              px: 1.5,
-              py: 0.75,
-              borderRadius: 1.5,
-              bgcolor: isDark ? alpha(theme.palette.common.white, 0.04) : 'grey.50',
-              border: '1px solid',
-              borderColor: isDark ? alpha(theme.palette.common.white, 0.08) : 'divider',
-            }}
-          >
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>$</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" color="text.secondary">$</Typography>
             <TextField
               size="small"
               value={budgetValue}
@@ -1162,28 +1039,15 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
               }}
               onBlur={handleBudgetSave}
               onKeyDown={(e) => e.key === 'Enter' && handleBudgetSave()}
-              sx={{
-                width: 70,
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: 'transparent',
-                  '& fieldset': { border: 'none' },
-                },
-                '& .MuiOutlinedInput-input': {
-                  textAlign: 'right',
-                  py: 0,
-                  px: 0.5,
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                },
-              }}
+              sx={{ width: 80 }}
+              slotProps={{ input: { sx: { textAlign: 'right' } } }}
               disabled={isUpdating === 'campaign-budget'}
             />
-            <Typography variant="caption" color="text.secondary">/day</Typography>
+            <Typography variant="body2" color="text.secondary">/day</Typography>
           </Box>
 
           {/* Status Toggle */}
           <StatusTogglePill
-            styles={styles}
             status={fbCampaign.status}
             onClick={handleCampaignStatusToggle}
             disabled={isUpdating === 'campaign-status'}
@@ -1192,84 +1056,50 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
       </Paper>
 
       {/* Ad Sets */}
+      <Typography variant="h6" sx={{ fontWeight: 600, mt: 1 }}>
+        Ad Sets ({adSets.length})
+      </Typography>
+
       {adSets.map((adSet) => {
         const adSetAds = ads.filter((ad) => ad.adset_id === adSet.id);
         const isExpanded = expandedAdSets.has(adSet.id);
         const selectedInSet = getSelectedAdsForAdSet(adSet.id);
         const allSelected = adSetAds.length > 0 && selectedInSet.length === adSetAds.length;
-        const activeInSet = adSetAds.filter((a) => a.status === 'ACTIVE').length;
 
         return (
-          <Paper
-            key={adSet.id}
-            elevation={0}
-            sx={{
-              overflow: 'hidden',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 2,
-              ...(isExpanded && {
-                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.06)',
-              }),
-              transition: 'box-shadow 0.15s ease',
-            }}
-          >
+          <Paper key={adSet.id} sx={{ overflow: 'hidden' }}>
             {/* Ad Set Header */}
             <Box
               sx={{
-                px: 2.5,
-                py: 1.75,
+                p: 2,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
                 cursor: 'pointer',
-                transition: 'background-color 0.1s ease',
                 '&:hover': { bgcolor: 'action.hover' },
               }}
               onClick={() => toggleAdSetExpand(adSet.id)}
             >
-              <Box
-                sx={{
-                  width: 24,
-                  height: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 1,
-                  bgcolor: isDark ? alpha(theme.palette.common.white, 0.06) : 'grey.100',
-                  transition: 'transform 0.15s ease',
-                  transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                }}
-              >
-                <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+              <IconButton size="small" sx={{ p: 0 }}>
+                {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+              </IconButton>
+
+              <FolderIcon sx={{ color: 'text.secondary' }} />
+
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontWeight: 500 }}>{adSet.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {adSetAds.length} ad{adSetAds.length !== 1 ? 's' : ''}
+                  {selectedInSet.length > 0 && ` (${selectedInSet.length} selected)`}
+                </Typography>
               </Box>
 
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>{adSet.name}</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.25 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {adSetAds.length} ad{adSetAds.length !== 1 ? 's' : ''}
-                  </Typography>
-                  {activeInSet > 0 && (
-                    <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 500 }}>
-                      {activeInSet} active
-                    </Typography>
-                  )}
-                  {selectedInSet.length > 0 && (
-                    <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 500 }}>
-                      {selectedInSet.length} selected
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-
-              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              <Typography variant="body2" color="text.secondary">
                 {formatBudget(adSet.daily_budget, adSet.lifetime_budget)}
               </Typography>
 
               <Box onClick={(e) => e.stopPropagation()}>
                 <StatusTogglePill
-                  styles={styles}
                   status={adSet.status}
                   onClick={() => handleAdSetStatusToggle(adSet)}
                   disabled={isUpdating === `adset-${adSet.id}`}
@@ -1280,30 +1110,19 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
 
             {/* Expanded Content */}
             <Collapse in={isExpanded}>
-              <Box
-                sx={{
-                  px: 2.5,
-                  pb: 2.5,
-                  pt: 1,
-                  borderTop: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: isDark ? alpha(theme.palette.common.white, 0.02) : 'grey.50',
-                }}
-              >
-                {/* Ad Set Toolbar */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+              <Box sx={{ px: 2, pb: 2, bgcolor: 'grey.50' }}>
+                {/* Ad Set Actions */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, borderBottom: '1px solid', borderColor: 'grey.200', mb: 2 }}>
                   <Checkbox
                     size="small"
                     checked={allSelected}
                     indeterminate={selectedInSet.length > 0 && !allSelected}
                     onChange={(e) => toggleAdSetSelection(adSet.id, e.target.checked)}
-                    sx={{ p: 0.5 }}
                   />
-                  <Typography variant="caption" color="text.secondary">Select All</Typography>
+                  <Typography variant="body2" color="text.secondary">Select All</Typography>
                   <Box sx={{ flex: 1 }} />
                   <Button
                     size="small"
-                    variant="outlined"
                     startIcon={<AddIcon />}
                     onClick={() => {
                       const templateAd = adSetAds[0];
@@ -1321,16 +1140,13 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
 
                 {/* Ads Grid */}
                 {adSetAds.length === 0 ? (
-                  <Typography color="text.secondary" variant="body2" sx={{ py: 2 }}>
-                    No ads in this ad set
-                  </Typography>
+                  <Typography color="text.secondary" sx={{ py: 2 }}>No ads in this ad set</Typography>
                 ) : (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 2 }}>
                     {adSetAds.map((ad) => (
                       <AdCard
                         key={ad.id}
                         ad={ad}
-                        styles={styles}
                         isSelected={selectedAds.has(ad.id)}
                         isUpdating={isUpdating === `ad-${ad.id}`}
                         onSelect={() => toggleAdSelection(ad.id)}
@@ -1387,14 +1203,13 @@ function ManageTab({ campaign, fbData, accessToken, adAccountId }: ManageTabProp
 // =============================================================================
 
 interface StatusTogglePillProps {
-  styles: ReturnType<typeof createStyles>;
   status: string;
   onClick: () => void;
   disabled?: boolean;
   size?: 'small' | 'medium';
 }
 
-function StatusTogglePill({ styles, status, onClick, disabled, size = 'medium' }: StatusTogglePillProps) {
+function StatusTogglePill({ status, onClick, disabled, size = 'medium' }: StatusTogglePillProps) {
   const isActive = status === 'ACTIVE';
 
   return (
@@ -1428,7 +1243,6 @@ function StatusTogglePill({ styles, status, onClick, disabled, size = 'medium' }
 
 interface AdCardProps {
   ad: FbAd;
-  styles: ReturnType<typeof createStyles>;
   isSelected: boolean;
   isUpdating: boolean;
   onSelect: () => void;
@@ -1437,11 +1251,11 @@ interface AdCardProps {
   onDelete: () => void;
 }
 
-function AdCard({ ad, styles, isSelected, isUpdating, onSelect, onStatusToggle, onPreview, onDelete }: AdCardProps) {
+function AdCard({ ad, isSelected, isUpdating, onSelect, onStatusToggle, onPreview, onDelete }: AdCardProps) {
   return (
     <Box sx={styles.adCard(isSelected)}>
-      {/* Header row: checkbox + status */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+      {/* Selection Checkbox */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
         <Checkbox
           size="small"
           checked={isSelected}
@@ -1449,7 +1263,6 @@ function AdCard({ ad, styles, isSelected, isUpdating, onSelect, onStatusToggle, 
           sx={{ p: 0 }}
         />
         <StatusTogglePill
-          styles={styles}
           status={ad.status}
           onClick={onStatusToggle}
           disabled={isUpdating}
@@ -1457,29 +1270,22 @@ function AdCard({ ad, styles, isSelected, isUpdating, onSelect, onStatusToggle, 
         />
       </Box>
 
-      {/* Thumbnail - 16:9 aspect ratio */}
+      {/* Thumbnail */}
       {ad.creative?.thumbnail_url ? (
         <Box
           component="img"
           src={ad.creative.thumbnail_url}
           alt={ad.name}
-          sx={{
-            width: '100%',
-            aspectRatio: '16/9',
-            objectFit: 'cover',
-            borderRadius: 1.5,
-            mb: 1.5,
-            display: 'block',
-          }}
+          sx={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 1, mb: 1 }}
         />
       ) : (
         <Box
           sx={{
             width: '100%',
-            aspectRatio: '16/9',
-            bgcolor: (t) => t.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
-            borderRadius: 1.5,
-            mb: 1.5,
+            height: 80,
+            bgcolor: 'grey.200',
+            borderRadius: 1,
+            mb: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1490,18 +1296,17 @@ function AdCard({ ad, styles, isSelected, isUpdating, onSelect, onStatusToggle, 
       )}
 
       {/* Name */}
-      <Typography variant="caption" noWrap sx={{ display: 'block', fontWeight: 500, mb: 1 }}>
+      <Typography variant="caption" noWrap sx={{ display: 'block', mb: 1 }}>
         {ad.name}
       </Typography>
 
       {/* Actions */}
       <Box sx={{ display: 'flex', gap: 0.5 }}>
-        <IconButton size="small" onClick={onPreview} title="Preview" sx={{ p: 0.5 }}>
-          <OpenInNewIcon sx={{ fontSize: 16 }} />
+        <IconButton size="small" onClick={onPreview} title="Preview">
+          <OpenInNewIcon fontSize="small" />
         </IconButton>
-        <Box sx={{ flex: 1 }} />
-        <IconButton size="small" onClick={onDelete} disabled={isUpdating} title="Delete" color="error" sx={{ p: 0.5 }}>
-          <DeleteIcon sx={{ fontSize: 16 }} />
+        <IconButton size="small" onClick={onDelete} disabled={isUpdating} title="Delete" color="error">
+          <DeleteIcon fontSize="small" />
         </IconButton>
       </Box>
     </Box>
@@ -1666,48 +1471,21 @@ function BulkEditModal({ open, onClose, selectedAds, campaignId, adAccountId, ac
 // HELPER COMPONENTS
 // =============================================================================
 
-// =============================================================================
-// MEDIA THUMBNAIL (handles broken image URLs gracefully)
-// =============================================================================
-
-function MediaThumb({ src, alt, fallbackLabel, isDark }: { src?: string; alt: string; fallbackLabel: string; isDark: boolean }) {
-  const [failed, setFailed] = useState(false);
-
-  if (!src || failed) {
-    return (
-      <Box
-        sx={{
-          width: '100%',
-          height: 90,
-          bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'grey.50',
-          borderRadius: 1.5,
-          border: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Typography variant="caption" color="text.secondary">{fallbackLabel}</Typography>
-      </Box>
-    );
-  }
-
+function InfoBox({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <Box
-      component="img"
-      src={src}
-      alt={alt}
-      onError={() => setFailed(true)}
-      sx={{
-        width: '100%',
-        height: 90,
-        objectFit: 'cover',
-        borderRadius: 1.5,
-        border: '1px solid',
-        borderColor: 'divider',
-      }}
-    />
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 500 }}>{value}</Typography>
+    </Box>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ display: 'flex', gap: 2 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 160 }}>{label}:</Typography>
+      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{value}</Typography>
+    </Box>
   );
 }
 

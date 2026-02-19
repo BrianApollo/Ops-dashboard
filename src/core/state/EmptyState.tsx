@@ -6,7 +6,6 @@ import Paper from '@mui/material/Paper';
 import InboxIcon from '@mui/icons-material/Inbox';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import FilterListOffIcon from '@mui/icons-material/FilterListOff';
-import { useTheme, alpha } from '@mui/material/styles';
 
 type EmptyVariant = 'default' | 'search' | 'filter';
 
@@ -27,22 +26,19 @@ interface EmptyStateProps {
   outlined?: boolean;
 }
 
-const variantIcons: Record<EmptyVariant, ReactNode> = {
-  default: <InboxIcon sx={{ fontSize: 28, color: 'text.disabled' }} />,
-  search: <SearchOffIcon sx={{ fontSize: 28, color: 'text.disabled' }} />,
-  filter: <FilterListOffIcon sx={{ fontSize: 28, color: 'text.disabled' }} />,
-};
-
-const variantDefaults: Record<EmptyVariant, { title: string; message: string }> = {
+const variantDefaults: Record<EmptyVariant, { icon: ReactNode; title: string; message: string }> = {
   default: {
+    icon: <InboxIcon sx={{ fontSize: 48, color: 'text.disabled' }} />,
     title: 'No items yet',
     message: 'Get started by creating your first item.',
   },
   search: {
+    icon: <SearchOffIcon sx={{ fontSize: 48, color: 'text.disabled' }} />,
     title: 'No results found',
     message: 'Try adjusting your search terms or clearing the search.',
   },
   filter: {
+    icon: <FilterListOffIcon sx={{ fontSize: 48, color: 'text.disabled' }} />,
     title: 'No matching items',
     message: 'No items match your current filters. Try adjusting or clearing them.',
   },
@@ -58,9 +54,8 @@ export function EmptyState({
   compact = false,
   outlined = true,
 }: EmptyStateProps) {
-  const theme = useTheme();
   const defaults = variantDefaults[variant];
-  const displayIcon = icon ?? variantIcons[variant];
+  const displayIcon = icon ?? defaults.icon;
   const displayTitle = title ?? defaults.title;
   const displayMessage = message ?? defaults.message;
 
@@ -76,42 +71,29 @@ export function EmptyState({
         px: 3,
       }}
     >
-      <Box
-        sx={{
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.1 : 0.06),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          mb: 2,
-        }}
-      >
-        {displayIcon}
-      </Box>
+      {displayIcon}
       <Typography
         variant={compact ? 'subtitle1' : 'h6'}
-        sx={{ fontWeight: 600, color: 'text.primary' }}
+        sx={{ mt: 2, fontWeight: 600 }}
       >
         {displayTitle}
       </Typography>
       <Typography
         variant="body2"
         color="text.secondary"
-        sx={{ mt: 0.75, maxWidth: 360, lineHeight: 1.6 }}
+        sx={{ mt: 1, maxWidth: 400 }}
       >
         {displayMessage}
       </Typography>
       {(action || secondaryAction) && (
         <Box sx={{ display: 'flex', gap: 1, mt: 3 }}>
           {action && (
-            <Button variant="contained" size="small" onClick={action.onClick}>
+            <Button variant="contained" onClick={action.onClick}>
               {action.label}
             </Button>
           )}
           {secondaryAction && (
-            <Button variant="outlined" size="small" onClick={secondaryAction.onClick}>
+            <Button variant="outlined" onClick={secondaryAction.onClick}>
               {secondaryAction.label}
             </Button>
           )}

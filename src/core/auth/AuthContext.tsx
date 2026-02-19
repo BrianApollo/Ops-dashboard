@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../../features/users/types';
-import { verifyCredentials } from '../../features/users/data';
+import { verifyCredentials, restoreSession } from '../../features/users/data';
+import { setAuthToken } from '../data/airtable-client';
 
 interface AuthContextType {
     user: User | null;
@@ -12,32 +13,55 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Store JWT in memory only — never localStorage
+let memoryToken: string | null = null;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isInitializing, setIsInitializing] = useState(true);
 
+    // Restore session on mount via server-side cookie or stored token
     useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            try {
-                setUser(JSON.parse(storedUser));
-            } catch (error) {
-                console.error('Failed to parse stored user', error);
-                localStorage.removeItem('user');
+        async function restore() {
+            // Try memory token first (if page hasn't fully reloaded)
+            if (memoryToken) {
+                const restored = await restoreSession(memoryToken);
+                if (restored) {
+                    setUser(restored);
+                    setAuthToken(memoryToken);
+                    setIsInitializing(false);
+                    return;
+                }
             }
+
+            // Try HttpOnly cookie session (sent automatically by browser)
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
+                if (response.ok) {
+                    const data = await response.json() as { user: User };
+                    if (data.user) {
+                        setUser(data.user);
+                    }
+                }
+            } catch {
+                // No valid session
+            }
+
+            setIsInitializing(false);
         }
-        setIsInitializing(false);
+        restore();
     }, []);
 
     const login = async (email: string, password: string): Promise<User | null> => {
         setIsLoading(true);
         try {
-            const verifiedUser = await verifyCredentials(email, password);
-            if (verifiedUser) {
-                setUser(verifiedUser);
-                localStorage.setItem('user', JSON.stringify(verifiedUser));
-                return verifiedUser;
+            const result = await verifyCredentials(email, password);
+            if (result) {
+                setUser(result.user);
+                memoryToken = result.token;
+                setAuthToken(result.token);
+                return result.user;
             }
             return null;
         } catch (error) {
@@ -47,9 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const logout = () => {
+    const logout = async () => {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+        } catch {
+            // Best effort
+        }
         setUser(null);
-        localStorage.removeItem('user');
+        memoryToken = null;
+        setAuthToken(null);
     };
 
     return (
