@@ -84,7 +84,7 @@ export function OpsLayout() {
           flexShrink: 0,
           borderRight: '1px solid',
           borderColor: 'divider',
-          bgcolor: 'background.paper',
+          bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#F8FAFC',
           display: 'flex',
           flexDirection: 'column',
           transition: 'width 0.2s ease-in-out',
@@ -113,14 +113,15 @@ export function OpsLayout() {
                 sx={{
                   width: 32,
                   height: 32,
-                  borderRadius: 1.5,
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  borderRadius: 1,
+                  bgcolor: theme.palette.primary.main,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#fff',
                   fontWeight: 700,
-                  fontSize: '0.875rem',
+                  fontSize: '0.8125rem',
+                  letterSpacing: '-0.02em',
                 }}
               >
                 M
@@ -129,11 +130,9 @@ export function OpsLayout() {
                 variant="h6"
                 sx={{
                   fontWeight: 700,
-                  fontSize: '1rem',
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
+                  fontSize: '0.9375rem',
+                  color: 'text.primary',
+                  letterSpacing: '-0.02em',
                 }}
               >
                 Media Ops

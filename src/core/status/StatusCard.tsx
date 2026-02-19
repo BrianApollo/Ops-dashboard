@@ -61,8 +61,8 @@ export function StatusCard({
         ...(isClickable && {
           '&:hover': {
             bgcolor: active ? 'primary.dark' : 'action.hover',
-            transform: 'translateY(-2px)',
-            boxShadow: active ? 4 : 2,
+            borderColor: active ? 'primary.dark' : 'primary.main',
+            boxShadow: active ? 3 : 1,
           },
         }),
       }}

@@ -143,11 +143,12 @@ export const nestedRowSx: SxProps<Theme> = {
  * Used in ListTableView, CampaignsTab.
  */
 export const tableHeaderCellSx: SxProps<Theme> = {
-  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#FAFBFC',
+  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : '#F8FAFC',
   borderBottom: '1px solid',
   borderColor: 'divider',
   fontWeight: 600,
-  fontSize: '0.75rem', // 12px - matches theme caption
+  fontSize: '0.6875rem', // 11px - tighter for premium feel
+  letterSpacing: '0.06em',
   color: 'text.secondary',
   py: 1.25,
   px: 2,
@@ -180,13 +181,13 @@ export const tableRowSelectedSx: SxProps<Theme> = {
   '&.Mui-selected': {
     bgcolor: (theme) =>
       theme.palette.mode === 'dark'
-        ? 'rgba(251, 146, 60, 0.12)'
-        : 'rgba(249, 115, 22, 0.06)',
+        ? 'rgba(96, 165, 250, 0.12)'
+        : 'rgba(30, 64, 175, 0.06)',
     '&:hover': {
       bgcolor: (theme) =>
         theme.palette.mode === 'dark'
-          ? 'rgba(251, 146, 60, 0.16)'
-          : 'rgba(249, 115, 22, 0.1)',
+          ? 'rgba(96, 165, 250, 0.16)'
+          : 'rgba(30, 64, 175, 0.1)',
     },
   },
 };
@@ -205,7 +206,9 @@ export const cardBaseSx: SxProps<Theme> = {
   transition: 'all 0.15s ease-in-out',
   '&:hover': {
     bgcolor: 'action.hover',
-    transform: 'translateY(-1px)',
+    boxShadow: (theme) => theme.palette.mode === 'dark'
+      ? '0 2px 8px rgba(0,0,0,0.3)'
+      : '0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
   },
 };
 

@@ -35,7 +35,7 @@ export function NavItem({ to, label, icon: Icon, active, collapsed }: NavItemPro
           ? theme.palette.primary.main
           : theme.palette.text.secondary,
         bgcolor: active
-          ? alpha(theme.palette.primary.main, isDark ? 0.15 : 0.08)
+          ? alpha(theme.palette.primary.main, isDark ? 0.12 : 0.06)
           : 'transparent',
         fontWeight: active ? 600 : 500,
         fontSize: '0.875rem',
