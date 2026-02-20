@@ -13,7 +13,8 @@ import type { RedTrackCampaignListItem } from './types';
 // CONFIGURATION
 // =============================================================================
 
-const REDTRACK_API_KEY = import.meta.env.VITE_REDTRACK_API_KEY as string | undefined;
+// API key is now injected server-side by the proxy — this is a placeholder
+const REDTRACK_API_KEY = 'proxy-managed' as string | undefined;
 const PER_PAGE = 100; // Fetch 100 per page to minimize requests
 
 // =============================================================================

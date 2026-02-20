@@ -61,8 +61,8 @@ import type { Campaign, FbAdSet, FbAd, FbCreative } from '../../../../features/c
 import type { CampaignViewTab } from '../../products/composition/types';
 import { AddAdsModal } from './AddAdsModal';
 
-// RedTrack API key from environment
-const REDTRACK_API_KEY = import.meta.env.VITE_REDTRACK_API_KEY as string | undefined;
+// API key is now injected server-side by the proxy — this is a placeholder
+const REDTRACK_API_KEY = 'proxy-managed' as string | undefined;
 
 // =============================================================================
 // STYLES

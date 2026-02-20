@@ -15,40 +15,7 @@ import type { Campaign, CampaignStatus, CampaignPlatform } from './types';
 import type { LaunchSnapshot } from './launch/types';
 import { listVideos } from '../videos/data';
 import { listImages } from '../images/data';
-import { throttledAirtableFetch } from '../../core/data/airtable-throttle';
-
-// =============================================================================
-// AIRTABLE CONFIG (shared with videos)
-// =============================================================================
-
-const AIRTABLE_API_KEY = import.meta.env.VITE_AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-
-function validateConfig(): { apiKey: string; baseId: string } {
-  const missing: string[] = [];
-
-  if (!AIRTABLE_API_KEY) {
-    missing.push('VITE_AIRTABLE_API_KEY');
-  }
-  if (!AIRTABLE_BASE_ID) {
-    missing.push('VITE_AIRTABLE_BASE_ID');
-  }
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Airtable configuration error: Missing environment variable(s): ${missing.join(', ')}. ` +
-      `Add them to your .env file.`
-    );
-  }
-
-  return {
-    apiKey: AIRTABLE_API_KEY as string,
-    baseId: AIRTABLE_BASE_ID as string,
-  };
-}
-
-const config = validateConfig();
-const AIRTABLE_API_URL = `https://api.airtable.com/v0/${config.baseId}`;
+import { airtableFetch } from '../../core/data/airtable-client';
 
 // =============================================================================
 // TABLE & FIELD NAMES
@@ -116,41 +83,6 @@ interface AirtableRecord {
 interface AirtableResponse {
   records: AirtableRecord[];
   offset?: string;
-}
-
-// =============================================================================
-// AIRTABLE HELPERS
-// =============================================================================
-
-async function airtableFetch(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const response = await throttledAirtableFetch(`${AIRTABLE_API_URL}/${endpoint}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    let errorMessage = `Airtable API error: ${response.status} ${response.statusText}`;
-    try {
-      const errorData = await response.json();
-      if (errorData.error) {
-        const errType = errorData.error.type || 'UNKNOWN_ERROR';
-        const errMsg = errorData.error.message || '';
-        errorMessage = `Airtable error (${errType}): ${errMsg}`;
-      }
-    } catch {
-      // Use default message
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response;
 }
 
 // =============================================================================

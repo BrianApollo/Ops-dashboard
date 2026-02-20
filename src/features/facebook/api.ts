@@ -33,7 +33,7 @@ import type {
 // CONFIGURATION
 // =============================================================================
 
-const FB_API_VERSION = 'v18.0';
+const FB_API_VERSION = 'v21.0';
 const FB_GRAPH_URL = 'https://graph.facebook.com';
 
 // =============================================================================

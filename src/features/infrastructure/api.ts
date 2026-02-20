@@ -3,58 +3,67 @@
  *
  * Port of facebook.js — typed Graph API calls for infrastructure management.
  * Handles token validation, exchange, sync, and system user operations.
+ *
+ * All calls that need the App Secret are routed through /api/facebook/proxy.
+ * The FB_APP_SECRET never reaches the browser.
  */
 
-const FB_API_VERSION = 'v21.0';
-const FB_GRAPH_URL = 'https://graph.facebook.com';
+import { getAuthToken } from '../../core/data/airtable-client';
 
 const FB_APP_ID = import.meta.env.VITE_FB_APP_ID as string;
-const FB_APP_SECRET = import.meta.env.VITE_FB_APP_SECRET as string;
 
 // =============================================================================
-// HELPERS
+// PROXY HELPER
 // =============================================================================
 
-export async function getAppSecretProof(accessToken: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(FB_APP_SECRET);
-  const messageData = encoder.encode(accessToken);
+/**
+ * Call the server-side Facebook proxy.
+ * The proxy adds appsecret_proof, client_secret, etc. server-side.
+ */
+async function fbProxyCall<T = Record<string, unknown>>(
+  body: Record<string, unknown>
+): Promise<T> {
+  const token = getAuthToken();
+  const response = await fetch('/api/facebook/proxy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
 
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } }));
+    const message = (data as Record<string, Record<string, string>>)?.error?.message || `Facebook proxy error: ${response.status}`;
+    throw new Error(message);
+  }
 
-  const signature = await crypto.subtle.sign('HMAC', key, messageData);
-  const hashArray = Array.from(new Uint8Array(signature));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return response.json() as Promise<T>;
 }
+
+// =============================================================================
+// INTERNAL GRAPH API CALL (via proxy)
+// =============================================================================
 
 async function apiCall<T = Record<string, unknown>>(
   endpoint: string,
   accessToken: string,
   params: Record<string, string> = {}
 ): Promise<T> {
-  const appSecretProof = await getAppSecretProof(accessToken);
-  const queryParams = new URLSearchParams({
-    access_token: accessToken,
-    appsecret_proof: appSecretProof,
-    ...params,
+  return fbProxyCall<T>({
+    action: 'graph_call',
+    method: 'GET',
+    endpoint,
+    accessToken,
+    params,
   });
-
-  const url = `${FB_GRAPH_URL}/${FB_API_VERSION}${endpoint}?${queryParams}`;
-  const response = await fetch(url);
-  const data = await response.json();
-
-  // if (data.error) {
-  //   throw new Error(data.error.message || 'API call failed');
-  // }
-
-  return data as T;
 }
+
+// =============================================================================
+// HELPERS
+// =============================================================================
 
 export function calculateExpiryDate(expiresIn: number): string {
   const expiryDate = new Date();
@@ -76,45 +85,50 @@ interface TokenValidation {
 }
 
 export async function validateToken(token: string): Promise<TokenValidation> {
-  const appToken = `${FB_APP_ID}|${FB_APP_SECRET}`;
-  const url = `${FB_GRAPH_URL}/${FB_API_VERSION}/debug_token?input_token=${token}&access_token=${appToken}`;
+  const data = await fbProxyCall<Record<string, unknown>>({
+    action: 'validate_token',
+    inputToken: token,
+  });
 
-  const response = await fetch(url);
-  const data = await response.json();
-
-  if (data.error || !data.data) {
-    return { isValid: false, expiresAt: null, dataAccessExpiresAt: null, scopes: [], error: data.error?.message };
+  const d = data.data as Record<string, unknown> | undefined;
+  if (data.error || !d) {
+    return {
+      isValid: false,
+      expiresAt: null,
+      dataAccessExpiresAt: null,
+      scopes: [],
+      error: (data.error as Record<string, string>)?.message,
+    };
   }
 
   return {
-    isValid: data.data.is_valid,
-    expiresAt: data.data.expires_at ? new Date(data.data.expires_at * 1000) : null,
-    dataAccessExpiresAt: data.data.data_access_expires_at ? new Date(data.data.data_access_expires_at * 1000) : null,
-    scopes: data.data.scopes || [],
-    userId: data.data.user_id,
+    isValid: d.is_valid as boolean,
+    expiresAt: d.expires_at ? new Date((d.expires_at as number) * 1000) : null,
+    dataAccessExpiresAt: d.data_access_expires_at
+      ? new Date((d.data_access_expires_at as number) * 1000)
+      : null,
+    scopes: (d.scopes as string[]) || [],
+    userId: d.user_id as string | undefined,
   };
 }
 
 export async function exchangeToken(
   shortLivedToken: string
 ): Promise<{ token: string; expiresIn: number }> {
-  const url =
-    `${FB_GRAPH_URL}/${FB_API_VERSION}/oauth/access_token?` +
-    `grant_type=fb_exchange_token&` +
-    `client_id=${FB_APP_ID}&` +
-    `client_secret=${FB_APP_SECRET}&` +
-    `fb_exchange_token=${shortLivedToken}`;
-
-  const response = await fetch(url);
-  const data = await response.json();
+  const data = await fbProxyCall<Record<string, unknown>>({
+    action: 'exchange_token',
+    shortLivedToken,
+  });
 
   if (data.error) {
-    throw new Error(data.error.message || 'Token exchange failed');
+    throw new Error(
+      ((data.error as Record<string, string>)?.message) || 'Token exchange failed'
+    );
   }
 
   return {
-    token: data.access_token,
-    expiresIn: data.expires_in || 5184000,
+    token: data.access_token as string,
+    expiresIn: (data.expires_in as number) || 5184000,
   };
 }
 
@@ -182,21 +196,6 @@ export async function getPages(token: string): Promise<FBPage[]> {
   });
   return response.data || [];
 }
-
-// export async function getBMAdAccounts(
-//   token: string,
-//   bmId: string
-// ): Promise<FBAdAccount[]> {
-//   const response = await apiCall<{ data: FBAdAccount[] }>(
-//     `/${bmId}/owned_ad_accounts`,
-//     token,
-//     {
-//       fields: 'id,name,account_status,currency,amount_spent,timezone_name',
-//       limit: '100',
-//     }
-//   );
-//   return response.data || [];
-// }
 
 export async function getBMAdAccounts(
   token: string,
@@ -291,23 +290,13 @@ export async function createSystemUser(
   name: string,
   role: string = 'ADMIN'
 ): Promise<{ id: string }> {
-  const appSecretProof = await getAppSecretProof(token);
-  const params = new URLSearchParams({
-    name,
-    role,
-    access_token: token,
-    appsecret_proof: appSecretProof,
+  return fbProxyCall<{ id: string }>({
+    action: 'graph_call',
+    method: 'POST',
+    endpoint: `/${bmId}/system_users`,
+    accessToken: token,
+    params: { name, role },
   });
-
-  const url = `${FB_GRAPH_URL}/${FB_API_VERSION}/${bmId}/system_users`;
-  const response = await fetch(url, { method: 'POST', body: params });
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || 'Failed to create System User');
-  }
-
-  return data;
 }
 
 export async function generateSystemUserAccessToken(
@@ -315,23 +304,13 @@ export async function generateSystemUserAccessToken(
   systemUserId: string,
   scopes: string = 'business_management,ads_management,ads_read,pages_read_engagement,pages_manage_metadata'
 ): Promise<{ access_token: string }> {
-  const appSecretProof = await getAppSecretProof(adminToken);
-  const params = new URLSearchParams({
-    business_app: FB_APP_ID,
-    scope: scopes,
-    access_token: adminToken,
-    appsecret_proof: appSecretProof,
+  return fbProxyCall<{ access_token: string }>({
+    action: 'graph_call',
+    method: 'POST',
+    endpoint: `/${systemUserId}/access_tokens`,
+    accessToken: adminToken,
+    params: { business_app: FB_APP_ID, scope: scopes },
   });
-
-  const url = `${FB_GRAPH_URL}/${FB_API_VERSION}/${systemUserId}/access_tokens`;
-  const response = await fetch(url, { method: 'POST', body: params });
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || 'Failed to generate token');
-  }
-
-  return data;
 }
 
 export async function checkBMAdminAccess(
